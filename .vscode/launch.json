@@ -1,0 +1,39 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Nol Coffee (Development)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=ENV=development",
+        "--dart-define=API_BASE_URL=http://192.168.1.29:3000",
+        "--flavor",
+        "development"
+      ]
+    },
+    {
+      "name": "Nol Coffee (Production)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=ENV=production",
+        "--dart-define=API_BASE_URL=https://api.nol.coffee",
+        "--flavor",
+        "production"
+      ]
+    },
+    {
+      "name": "Nol Coffee (Production Release)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define=ENV=production",
+        "--dart-define=API_BASE_URL=https://api.nol.coffee",
+        "--flavor",
+        "production"
+      ]
+    }
+  ]
+}
