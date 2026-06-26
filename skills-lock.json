@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "flutter-animations": {
+      "source": "madteacher/mad-agents-skills",
+      "sourceType": "github",
+      "skillPath": "flutter-animations/SKILL.md",
+      "computedHash": "a0f81c4bbff81b43be42cd11ebf33b6a4e50e2f94134d3071e441785fc4872e8"
+    },
+    "flutter-ui-ux": {
+      "source": "ajianaz/skills-collection",
+      "sourceType": "github",
+      "skillPath": "skills/flutter-ui-ux/SKILL.md",
+      "computedHash": "a0fc21d9328f80ab16c3e3463a12f4fd86462bc6370fe0ea016dc06ae1616654"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "a2d7eab9fd29c7685e10dc0d9acca085e32e817b59b6914c0c1be28a56062fbc"
+    }
+  }
+}
