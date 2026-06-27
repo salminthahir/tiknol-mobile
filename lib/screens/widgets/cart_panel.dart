@@ -15,6 +15,7 @@ import '../../services/printer_service.dart';
 import '../../services/receipt_template_service.dart';
 import '../../models/cart_item.dart';
 import '../payment_webview.dart';
+import '../qris_payment_screen.dart';
 
 class CartPanel extends ConsumerStatefulWidget {
   const CartPanel({super.key});
@@ -161,54 +162,59 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       final subtotal = ref.read(cartTotalProvider);
       final finalTotal = subtotal - _discount;
 
-      // Get payment methods
-      final methods = await orderService.getPaymentMethods(finalTotal);
-
-      if (!mounted) return;
-      setState(() => _isProcessing = false);
-
-      // Show method selection
-      final selected = await showDialog<String>(
-        context: context,
-        builder: (ctx) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
-            child: _PaymentMethodSheet(methods: methods),
-          ),
-        ),
-      );
-
-      if (selected == null || !mounted) return;
-
-      setState(() => _isProcessing = true);
-
+      // Create payment (backend auto-picks QRIS)
       final result = await orderService.createOnlinePayment(
         customerName: _customerNameController.text,
         orderType: _orderType,
         items: cart,
         subtotal: subtotal,
         discountAmount: _discount,
-        paymentMethod: selected,
         branchId: ref.read(authProvider).branchId ?? '',
         voucherId: _voucher?.voucherId,
       );
 
-      // Open in-app WebView
       if (!mounted) return;
-      final paymentSuccess = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => PaymentWebView(
-            paymentUrl: result['paymentUrl'] ?? '',
-            orderId: result['orderId'] ?? '',
-            returnUrl: '${Constants.baseUrl}/ticket/',
-          ),
-        ),
-      );
+      setState(() => _isProcessing = false);
 
-      if (paymentSuccess == true && mounted) {
+      final orderId = result['orderId'] ?? '';
+      final qrString = result['qrString'] ?? '';
+      final amount = int.tryParse(result['amount'] ?? '0') ?? finalTotal;
+      final expiryPeriod = int.tryParse(result['expiryPeriod'] ?? '10') ?? 10;
+
+      // Navigate to QRIS Payment Screen (or fallback to WebView if qrString empty)
+      bool paymentSuccess;
+      if (qrString.isNotEmpty) {
+        paymentSuccess = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => QrisPaymentScreen(
+              orderId: orderId,
+              qrString: qrString,
+              amount: amount,
+              expiryMinutes: expiryPeriod,
+              customerName: _customerNameController.text.isEmpty
+                  ? 'Customer POS'
+                  : _customerNameController.text,
+            ),
+          ),
+        ) ?? false;
+      } else {
+        // Fallback to WebView if qrString not available
+        paymentSuccess = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => PaymentWebView(
+              paymentUrl: result['paymentUrl'] ?? '',
+              orderId: orderId,
+              returnUrl: '${Constants.baseUrl}/ticket/',
+            ),
+          ),
+        ) ?? false;
+      }
+
+      if (paymentSuccess && mounted) {
         // Payment success
         final auth = ref.read(authProvider);
         ref.read(cartProvider.notifier).clear();
@@ -218,7 +224,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           _isProcessing = false;
         });
         _showSuccessDialog(
-          result['orderId'] ?? '',
+          orderId,
           items: cart,
           total: finalTotal,
           paymentType: 'QRIS',
@@ -229,8 +235,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           customerName: _customerNameController.text,
         );
       } else {
-        // B5: Cancel PENDING order when user dismisses WebView without paying
-        final orderId = result['orderId'] ?? '';
+        // Cancel PENDING order when user dismisses without paying
         if (orderId.isNotEmpty) {
           await orderService.cancelOrder(orderId);
         }
@@ -1096,52 +1101,5 @@ class _QtyButton extends StatelessWidget {
         child: Icon(icon, size: 16),
       ),
     );
-  }
-}
-
-class _PaymentMethodSheet extends StatelessWidget {
-  final List<dynamic> methods;
-  const _PaymentMethodSheet({required this.methods});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Pilih Metode Pembayaran',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
-              itemCount: methods.length,
-              itemBuilder: (_, i) {
-                final m = methods[i] as Map<String, dynamic>;
-                final fee = _parseNum(m['totalFee']);
-                return ListTile(
-                  title: Text(m['paymentName'] ?? 'Unknown'),
-                  subtitle: fee > 0
-                      ? Text('Fee: Rp ${NumberFormat('#,###', 'id').format(fee)}')
-                      : null,
-                  onTap: () => Navigator.pop(context, m['paymentMethod'] as String?),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  int _parseNum(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is double) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
   }
 }

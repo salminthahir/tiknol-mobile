@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
+import 'services/server_config_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,6 +11,10 @@ void main() async {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+
+  // Pre-load saved server URL so ApiClient uses correct baseUrl on first request
+  await ServerConfigService.getBaseUrl(); // warm up SharedPreferences
+
   runApp(const ProviderScope(child: TiknolPosApp()));
 }
 

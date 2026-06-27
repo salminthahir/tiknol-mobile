@@ -7,6 +7,7 @@ import '../screens/pos_screen.dart';
 import '../screens/kitchen_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/printer_settings_screen.dart';
+import '../screens/product_management_screen.dart';
 import '../screens/shell_screen.dart';
 
 class _GoRouterRefreshNotifier extends ChangeNotifier {
@@ -79,6 +80,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
               child: const PrinterSettingsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/products',
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const ProductManagementScreen(),
             ),
           ),
         ],

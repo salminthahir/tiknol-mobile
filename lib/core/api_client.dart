@@ -5,9 +5,14 @@ import '../providers/auth_provider.dart';
 import '../services/server_config_service.dart';
 import 'constants.dart';
 
-final apiClientProvider = Provider((ref) => ApiClient(
-  onUnauthorized: () => ref.read(authProvider.notifier).sessionExpired(),
-));
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final client = ApiClient(
+    onUnauthorized: () => ref.read(authProvider.notifier).sessionExpired(),
+  );
+  // Auto-refresh base URL from saved prefs on creation
+  client.refreshBaseUrl();
+  return client;
+});
 final secureStorageProvider = Provider((_) => const FlutterSecureStorage());
 
 class ApiClient {
@@ -16,7 +21,6 @@ class ApiClient {
   final Future<void> Function()? onUnauthorized;
 
   ApiClient({this.onUnauthorized}) {
-    // Synchronous init with fallback URL; refreshBaseUrl can update later
     _dio = Dio(
       BaseOptions(
         baseUrl: Constants.baseUrl,
@@ -64,7 +68,7 @@ class ApiClient {
     );
   }
 
-  /// Call once on app startup (or after changing server URL) to override baseUrl from prefs.
+  /// Override baseUrl from saved prefs. Called automatically on creation and after changing server URL.
   Future<void> refreshBaseUrl() async {
     final baseUrl = await ServerConfigService.getBaseUrl();
     _dio.options.baseUrl = baseUrl;

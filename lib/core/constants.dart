@@ -3,7 +3,7 @@ class Constants {
   // Development: http://192.168.1.29:3000 (or local IP)
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://api.nol.coffee',
+    defaultValue: 'http://192.168.100.95:3000',
   );
   static const int connectTimeout = 15000;
   static const int receiveTimeout = 15000;

@@ -1,12 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/product.dart';
 import '../services/product_service.dart';
-import '../providers/auth_provider.dart';
+import 'auth_provider.dart';
 
 final productsProvider = FutureProvider.autoDispose<List<Product>>((ref) async {
-  final auth = ref.watch(authProvider);
+  ref.watch(authProvider); // Reactive dependency: re-fetch when auth/branch changes
   final productService = ref.read(productServiceProvider);
-  return productService.fetchProducts(branchId: auth.branchId);
+  final products = await productService.getProducts(all: false);
+  return products.where((p) => p.isAvailable).toList();
 });
 
 final categoryFilterProvider = NotifierProvider<CategoryFilterNotifier, String>(CategoryFilterNotifier.new);

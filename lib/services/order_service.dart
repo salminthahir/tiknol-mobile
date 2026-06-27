@@ -45,28 +45,13 @@ class OrderService {
     throw Exception(response.data['error'] ?? 'Gagal membuat order');
   }
 
-  Future<List<dynamic>> getPaymentMethods(int amount) async {
-    final api = ref.read(apiClientProvider);
-
-    final response = await api.client.post(
-      '/api/payment/methods',
-      data: {'amount': amount},
-    );
-
-    if (response.statusCode == 200 && response.data['methods'] != null) {
-      return response.data['methods'] as List<dynamic>;
-    }
-
-    throw Exception('Gagal memuat metode pembayaran');
-  }
-
   Future<Map<String, String>> createOnlinePayment({
     required String customerName,
     required String orderType,
     required List<CartItem> items,
     required int subtotal,
     required int discountAmount,
-    required String paymentMethod,
+    String? paymentMethod,
     required String branchId,
     String? voucherId,
   }) async {
@@ -87,15 +72,18 @@ class OrderService {
         'subtotal': subtotal,
         'discountAmount': discountAmount,
         'voucherId': voucherId,
-        'paymentMethod': paymentMethod,
+        'paymentMethod': paymentMethod ?? '',
         'branchId': branchId,
       },
     );
 
-    if (response.statusCode == 200 && response.data['paymentUrl'] != null) {
+    if (response.statusCode == 200 && response.data['orderId'] != null) {
       return {
-        'paymentUrl': response.data['paymentUrl'] as String,
+        'paymentUrl': (response.data['paymentUrl'] ?? '') as String,
         'orderId': (response.data['orderId'] ?? '') as String,
+        'qrString': (response.data['qrString'] ?? '') as String,
+        'amount': (response.data['amount'] ?? 0).toString(),
+        'expiryPeriod': (response.data['expiryPeriod'] ?? 10).toString(),
       };
     }
 
@@ -109,6 +97,24 @@ class OrderService {
       await api.client.post('/api/payment/reset', data: {'orderId': orderId});
     } catch (_) {
       // Best-effort — don't crash if cancel fails
+    }
+  }
+
+  Future<String> checkPaymentStatus(String orderId) async {
+    if (orderId.isEmpty) return 'PENDING';
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.client.post(
+        '/api/payment/check-status',
+        data: {'orderId': orderId},
+      );
+
+      if (response.statusCode == 200 && response.data['status'] != null) {
+        return response.data['status'] as String;
+      }
+      return 'PENDING';
+    } catch (_) {
+      return 'PENDING';
     }
   }
 }
