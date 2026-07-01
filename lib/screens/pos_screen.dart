@@ -54,7 +54,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
     final isTablet = screenWidth > 600;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.posBg,
       body: SafeArea(
         child: isTablet
             ? _buildTabletLayout(auth, products, categories, activeCategory,
@@ -152,22 +152,31 @@ class _PosScreenState extends ConsumerState<PosScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: AppColors.posCardBg,
+        border: Border(bottom: BorderSide(color: AppColors.posDivider)),
       ),
       child: Row(
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('NOL POS',
+              Text.rich(
+                TextSpan(
                   style: GoogleFonts.spaceMono(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      letterSpacing: -0.5)),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    letterSpacing: -0.5,
+                    color: Colors.white,
+                  ),
+                  children: const [
+                    TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
+                    TextSpan(text: 'NOL POS'),
+                  ],
+                ),
+              ),
               Text(
                 '${auth.branchName ?? ''} • ${auth.userName ?? ''}',
-                style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade500),
+                style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
               ),
             ],
           ),
@@ -204,29 +213,50 @@ class _PosScreenState extends ConsumerState<PosScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: AppColors.posCardBg,
+        border: Border(bottom: BorderSide(color: AppColors.posDivider)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-                color: Colors.black, borderRadius: BorderRadius.circular(8)),
-            child: Text('O',
+                color: AppColors.posBg, borderRadius: BorderRadius.circular(8)),
+            child: Text.rich(
+              TextSpan(
                 style: GoogleFonts.spaceMono(
-                    color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+                children: const [
+                  TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
+                  TextSpan(text: 'NOL'),
+                ],
+              ),
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('NOL POS',
+                Text.rich(
+                  TextSpan(
                     style: GoogleFonts.spaceMono(
-                        fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: -0.5)),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                    children: const [
+                      TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
+                      TextSpan(text: 'NOL POS'),
+                    ],
+                  ),
+                ),
                 Text('${auth.branchName ?? ''} • ${auth.userName ?? ''}',
-                    style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade500)),
+                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
               ],
             ),
           ),
@@ -238,17 +268,17 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: AppColors.reserve,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
                       const Icon(LucideIcons.shoppingBag,
-                          color: Colors.white, size: 16),
+                          color: Colors.black, size: 16),
                       const SizedBox(width: 6),
                       Text('$cartCount',
                           style: GoogleFonts.inter(
-                              color: Colors.white, fontWeight: FontWeight.bold)),
+                              color: Colors.black, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -276,20 +306,25 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   ref.read(searchQueryProvider.notifier).set(v),
               decoration: InputDecoration(
                 hintText: 'Cari menu...',
-                hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade500),
-                prefixIcon: const Icon(Icons.search, size: 18),
+                hintStyle: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
+                prefixIcon: const Icon(Icons.search, size: 18, color: Colors.white70),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: AppColors.posCardBg,
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: const BorderSide(color: AppColors.posDivider),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: const BorderSide(color: AppColors.posDivider),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.reserve, width: 1.5),
                 ),
               ),
+              style: GoogleFonts.inter(color: Colors.white),
             ),
           ),
           const SizedBox(height: 6),
@@ -323,23 +358,24 @@ class _PosScreenState extends ConsumerState<PosScreen>
                               horizontal: 14, vertical: 5),
                           decoration: BoxDecoration(
                             color:
-                                isActive ? AppColors.accent : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
+                                isActive ? AppColors.reserve : AppColors.posCardBg,
+                            borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: isActive
                                   ? Colors.black
-                                  : AppColors.border,
+                                  : AppColors.posDivider,
                               width: isActive ? 1.5 : 1,
                             ),
                           ),
                             child: Text(
                               cat,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 10,
                                 fontWeight: FontWeight.w700,
+                                letterSpacing: 2,
                                 color: isActive
                                     ? Colors.black
-                                    : Colors.grey.shade600,
+                                    : Colors.white70,
                               ),
                             ),
                         ),
@@ -364,18 +400,19 @@ class _PosScreenState extends ConsumerState<PosScreen>
         curve: Curves.easeInOut,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          color: isActive ? AppColors.reserve : AppColors.posCardBg,
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isActive ? AppColors.primary : AppColors.border,
+            color: isActive ? AppColors.reserve : AppColors.posDivider,
           ),
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
-            fontSize: 11,
+          style: GoogleFonts.spaceMono(
+            fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: isActive ? Colors.white : Colors.grey.shade600,
+            letterSpacing: 2,
+            color: isActive ? Colors.black : Colors.white70,
           ),
         ),
       ),
@@ -393,11 +430,11 @@ class _PosScreenState extends ConsumerState<PosScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(hasFilter ? LucideIcons.searchX : LucideIcons.coffee,
-                size: 48, color: Colors.grey.shade400),
+                size: 48, color: Colors.white30),
             const SizedBox(height: 12),
             Text(hasFilter ? 'Tidak ada produk yang cocok' : 'Belum ada produk',
                 style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600, color: Colors.grey.shade500)),
+                    fontWeight: FontWeight.w600, color: Colors.white54)),
             if (hasFilter) ...[
               const SizedBox(height: 8),
               TextButton(
@@ -410,7 +447,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
                     style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.primary)),
+                        color: AppColors.reserve)),
               ),
             ],
           ],
@@ -510,6 +547,7 @@ class _ProductCard extends ConsumerStatefulWidget {
 
 class _ProductCardState extends ConsumerState<_ProductCard> {
   double _scale = 1.0;
+  bool _isPressed = false;
 
   void _onTap() {
     final disableAnim = MediaQuery.disableAnimationsOf(context);
@@ -531,16 +569,21 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
     final qtyInCart = ref.watch(cartProductQtyProvider(widget.product.id));
 
     return GestureDetector(
-      onTap: _onTap,
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        _onTap();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedScale(
         scale: _scale,
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOutBack,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.posCardBg,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.posDivider),
           ),
           child: Stack(
             children: [
@@ -552,29 +595,40 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                     child: ClipRRect(
                       borderRadius:
                           const BorderRadius.vertical(top: Radius.circular(10)),
-                      child: widget.product.image != null
-                          ? CachedNetworkImage(
-                              imageUrl: widget.product.image!,
-                              fit: BoxFit.cover,
-                              placeholder: (_, _) => Container(
-                                color: Colors.grey.shade100,
-                                child: const Center(
-                                    child: Icon(LucideIcons.coffee,
-                                        color: Colors.grey, size: 24)),
-                              ),
-                              errorWidget: (_, _, _) => Container(
-                                color: Colors.grey.shade100,
-                                child: const Center(
-                                    child: Icon(LucideIcons.coffee,
-                                        color: Colors.grey, size: 24)),
-                              ),
-                            )
-                          : Container(
-                              color: Colors.grey.shade100,
-                              child: const Center(
-                                  child: Icon(LucideIcons.coffee,
-                                      color: Colors.grey, size: 24)),
-                            ),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          widget.product.image != null
+                              ? CachedNetworkImage(
+                                  imageUrl: widget.product.image!,
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, _) => Container(
+                                    color: AppColors.posBg,
+                                    child: const Center(
+                                        child: Icon(LucideIcons.coffee,
+                                            color: Colors.white30, size: 24)),
+                                  ),
+                                  errorWidget: (_, _, _) => Container(
+                                    color: AppColors.posBg,
+                                    child: const Center(
+                                        child: Icon(LucideIcons.coffee,
+                                            color: Colors.white30, size: 24)),
+                                  ),
+                                )
+                              : Container(
+                                  color: AppColors.posBg,
+                                  child: const Center(
+                                      child: Icon(LucideIcons.coffee,
+                                          color: Colors.white30, size: 24)),
+                                ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 80),
+                            color: _isPressed 
+                                ? AppColors.reserve.withValues(alpha: 0.25) 
+                                : Colors.transparent,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   Expanded(
@@ -589,9 +643,10 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                             child: Text(
                               widget.product.name,
                               style: GoogleFonts.inter(
-                                fontSize: 11,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 height: 1.2,
+                                color: Colors.white,
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -603,15 +658,16 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: AppColors.danger,
+                              color: AppColors.reserve,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               '${(widget.product.price / 1000).toStringAsFixed(0)}K',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.spaceMono(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900,
-                                color: Colors.white,
+                                letterSpacing: 2,
+                                color: Colors.black,
                               ),
                             ),
                           ),
@@ -642,16 +698,16 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                           width: 22,
                           height: 22,
                           decoration: const BoxDecoration(
-                            color: AppColors.primary,
+                            color: AppColors.reserve,
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: Text(
                               '$qtyInCart',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.spaceMono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                                color: Colors.black,
                               ),
                             ),
                           ),
@@ -681,6 +737,7 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.posCartBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -700,18 +757,18 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                 children: [
                   Text(product.name,
                       style: GoogleFonts.inter(
-                          fontSize: 18, fontWeight: FontWeight.w900)),
+                          fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
                   const SizedBox(height: 4),
                   Text('Rp ${formatter.format(product.price)}',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.spaceMono(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primary)),
+                          color: Colors.white)),
                   const SizedBox(height: 20),
                   if (product.customizationOptions?.temps.isNotEmpty == true) ...[
                     Text('Temperature',
                         style:
-                            GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+                            GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 10,
@@ -727,16 +784,16 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? (t == 'ICE'
-                                      ? Colors.blue.shade50
-                                      : Colors.red.shade50)
-                                  : Colors.white,
+                                      ? AppColors.reserve
+                                      : AppColors.danger)
+                                  : AppColors.posCardBg,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isSelected
                                     ? (t == 'ICE'
-                                        ? Colors.blue.shade300
-                                        : Colors.red.shade300)
-                                    : AppColors.border,
+                                        ? AppColors.reserve
+                                        : AppColors.danger)
+                                    : AppColors.posDivider,
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -750,20 +807,21 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                                   size: 16,
                                   color: isSelected
                                       ? (t == 'ICE'
-                                          ? Colors.blue.shade700
-                                          : Colors.red.shade700)
+                                          ? Colors.black
+                                          : Colors.white)
                                       : Colors.grey.shade500,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   t,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w700,
+                                    letterSpacing: 1,
                                     color: isSelected
                                         ? (t == 'ICE'
-                                            ? Colors.blue.shade700
-                                            : Colors.red.shade700)
+                                            ? Colors.black
+                                            : Colors.white)
                                         : Colors.grey.shade600,
                                   ),
                                 ),
@@ -778,7 +836,7 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                   if (product.customizationOptions?.sizes.isNotEmpty == true) ...[
                     Text('Size',
                         style:
-                            GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700)),
+                            GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 10,
@@ -793,24 +851,25 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                                 horizontal: 20, vertical: 10),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? AppColors.accent.withValues(alpha: 0.2)
-                                  : Colors.white,
+                                  ? AppColors.reserve.withValues(alpha: 0.2)
+                                  : AppColors.posCardBg,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isSelected
-                                    ? AppColors.accent
-                                    : AppColors.border,
+                                    ? AppColors.reserve
+                                    : AppColors.posDivider,
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
                             child: Text(
                               s,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
+                                letterSpacing: 1,
                                 color: isSelected
                                     ? Colors.black
-                                    : Colors.grey.shade600,
+                                    : Colors.white70,
                               ),
                             ),
                           ),
@@ -832,15 +891,15 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                         Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
+                        backgroundColor: AppColors.reserve,
+                        foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text('ADD TO CART',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.spaceMono(
                               fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 1)),
+                              letterSpacing: 3)),
                     ),
                   ),
                 ],

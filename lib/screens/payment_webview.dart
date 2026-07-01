@@ -2,16 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../core/theme.dart';
 
+/// In-app payment page for Duitku.
+///
+/// Security (PV-1/PV-2): this screen is a *viewer only*. It MUST NOT decide
+/// whether a payment succeeded. URLs (including Duitku `resultCode`/redirect
+/// targets) can be manipulated by the user/network and are therefore never
+/// trusted as proof of payment. When the user returns from the Duitku page
+/// (redirect whose path contains `/ticket/{orderId}`) or closes the screen,
+/// the caller is responsible for verifying the real status with the backend
+/// (`OrderService.checkPaymentStatus`).
 class PaymentWebView extends StatefulWidget {
   final String paymentUrl;
   final String orderId;
-  final String returnUrl;
 
   const PaymentWebView({
     super.key,
     required this.paymentUrl,
     required this.orderId,
-    required this.returnUrl,
   });
 
   @override
@@ -21,7 +28,17 @@ class PaymentWebView extends StatefulWidget {
 class _PaymentWebViewState extends State<PaymentWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
-  bool _paymentHandled = false;
+  bool _returnDetected = false;
+
+  /// Hosts the WebView is allowed to navigate to. Duitku payment pages live on
+  /// these hosts. The backend return URL is allowed separately via a path
+  /// match (see [_isReturnUrl]) so it works regardless of which environment /
+  /// server the device is configured for (dev LAN, staging, production).
+  static const List<String> _allowedDuitkuHosts = [
+    'duitku.com',
+    'sandbox.duitku.com',
+    'passport.duitku.com',
+  ];
 
   @override
   void initState() {
@@ -31,43 +48,51 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            setState(() => _isLoading = true);
-            _checkUrl(url);
+            if (mounted) setState(() => _isLoading = true);
+            _handleUrl(url);
           },
           onPageFinished: (url) {
-            setState(() => _isLoading = false);
-            _checkUrl(url);
+            if (mounted) setState(() => _isLoading = false);
+            _handleUrl(url);
           },
           onNavigationRequest: (request) {
-            _checkUrl(request.url);
-            return NavigationDecision.navigate;
+            if (_isAllowedNavigation(request.url)) {
+              return NavigationDecision.navigate;
+            }
+            return NavigationDecision.prevent;
           },
         ),
       )
       ..loadRequest(Uri.parse(widget.paymentUrl));
   }
 
-  void _checkUrl(String url) {
-    if (_paymentHandled) return;
+  /// The backend redirects to a URL whose path is `/ticket/{orderId}` after the
+  /// user leaves the Duitku payment page. We match on PATH only (host-agnostic)
+  /// so it works across environments. This is ONLY a completion signal — it is
+  /// never treated as proof of payment.
+  bool _isReturnUrl(String url) {
+    return url.contains('/ticket/${widget.orderId}');
+  }
 
-    // Duitku redirects to returnUrl after payment
-    // returnUrl format: https://domain.com/ticket/{orderId}
-    // Check path only (ignore domain) because dev/prod URLs differ
-    if (url.contains('/ticket/${widget.orderId}')) {
-      _paymentHandled = true;
-      Navigator.pop(context, true); // Return success
-    }
+  bool _isAllowedNavigation(String url) {
+    // Allow the backend return URL (path-based, any host/environment).
+    if (_isReturnUrl(url)) return true;
 
-    // Duitku success callback patterns
-    if (url.contains('status=success') || url.contains('result=00')) {
-      _paymentHandled = true;
-      Navigator.pop(context, true);
-    }
+    final host = Uri.tryParse(url)?.host ?? '';
+    if (host.isEmpty) return true; // about:blank, data:, etc. — let it through
+    return _allowedDuitkuHosts.any(
+      (d) => host == d || host.endsWith('.$d'),
+    );
+  }
 
-    // Duitku cancel/close patterns
-    if (url.contains('cancel') || url.contains('status=failed')) {
-      _paymentHandled = true;
-      Navigator.pop(context, false);
+  /// Detects that the user has returned from the Duitku payment page. This is
+  /// only a *completion signal* to close the WebView so the caller can verify
+  /// the real status server-side. It is NEVER treated as success.
+  void _handleUrl(String url) {
+    if (_returnDetected) return;
+    if (_isReturnUrl(url)) {
+      _returnDetected = true;
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -79,7 +104,7 @@ class _PaymentWebViewState extends State<PaymentWebView> {
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (_isLoading)

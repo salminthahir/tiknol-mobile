@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 
 /// Reusable skeleton loading widget with shimmer effect.
 /// Use [SkeletonCard] for card-like content and [SkeletonList] for list items.
+///
+/// Set [isDark] to true for dark-themed skeletons (e.g., POS, Kitchen).
 class Skeleton extends StatefulWidget {
   final double width;
   final double height;
   final double borderRadius;
   final EdgeInsetsGeometry margin;
+  final bool isDark;
 
   const Skeleton({
     super.key,
@@ -14,12 +17,14 @@ class Skeleton extends StatefulWidget {
     this.height = 16,
     this.borderRadius = 8,
     this.margin = EdgeInsets.zero,
+    this.isDark = false,
   });
 
   const Skeleton.circle({
     super.key,
     required double size,
     this.margin = EdgeInsets.zero,
+    this.isDark = false,
   })  : width = size,
         height = size,
         borderRadius = 1000;
@@ -29,6 +34,7 @@ class Skeleton extends StatefulWidget {
     this.width = double.infinity,
     this.height = 14,
     this.margin = EdgeInsets.zero,
+    this.isDark = false,
   }) : borderRadius = 4;
 
   @override
@@ -49,8 +55,8 @@ class _SkeletonState extends State<Skeleton>
     )..repeat();
 
     _colorAnimation = ColorTween(
-      begin: const Color(0xFFE8E8E8),
-      end: const Color(0xFFF5F5F5),
+      begin: widget.isDark ? const Color(0xFF2C2C35) : const Color(0xFFE8E8E8),
+      end: widget.isDark ? const Color(0xFF3A3A45) : const Color(0xFFF5F5F5),
     ).animate(CurvedAnimation(
       parent: _controller,
       curve: Curves.easeInOut,
@@ -110,12 +116,14 @@ class SkeletonCard extends StatelessWidget {
   final List<Widget> children;
   final EdgeInsetsGeometry padding;
   final double borderRadius;
+  final bool isDark;
 
   const SkeletonCard({
     super.key,
     required this.children,
     this.padding = const EdgeInsets.all(16),
     this.borderRadius = 12,
+    this.isDark = false,
   });
 
   @override
@@ -123,9 +131,11 @@ class SkeletonCard extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF2C2C35) : Colors.white,
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF3A3A45) : const Color(0xFFEEEEEE),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

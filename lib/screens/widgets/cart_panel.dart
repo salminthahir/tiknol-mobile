@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/theme.dart';
-import '../../core/constants.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/order_service.dart';
@@ -14,6 +13,7 @@ import '../../services/receipt_service.dart';
 import '../../services/printer_service.dart';
 import '../../services/receipt_template_service.dart';
 import '../../models/cart_item.dart';
+import '../../models/payment_status.dart';
 import '../payment_webview.dart';
 import '../qris_payment_screen.dart';
 
@@ -34,6 +34,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
   bool _isProcessing = false;
   bool _submitting = false; // B8: Hard guard against double-tap
   bool _hasAutoPrinted = false; // Prevent infinite print loop
+  bool _showVoucherInput = false;
   VoucherResult? _voucher;
   String? _voucherError;
 
@@ -181,10 +182,12 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       final amount = int.tryParse(result['amount'] ?? '0') ?? finalTotal;
       final expiryPeriod = int.tryParse(result['expiryPeriod'] ?? '10') ?? 10;
 
-      // Navigate to QRIS Payment Screen (or fallback to WebView if qrString empty)
-      bool paymentSuccess;
+      // Show the payment screen (QRIS or WebView fallback). Neither screen is
+      // trusted to decide success — see PV-1/PV-2. Their return value is only a
+      // hint that the user is done; the authoritative status comes from the
+      // server verification below.
       if (qrString.isNotEmpty) {
-        paymentSuccess = await Navigator.push<bool>(
+        await Navigator.push<void>(
           context,
           MaterialPageRoute(
             fullscreenDialog: true,
@@ -198,24 +201,30 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                   : _customerNameController.text,
             ),
           ),
-        ) ?? false;
+        );
       } else {
         // Fallback to WebView if qrString not available
-        paymentSuccess = await Navigator.push<bool>(
+        await Navigator.push<void>(
           context,
           MaterialPageRoute(
             fullscreenDialog: true,
             builder: (_) => PaymentWebView(
               paymentUrl: result['paymentUrl'] ?? '',
               orderId: orderId,
-              returnUrl: '${Constants.baseUrl}/ticket/',
             ),
           ),
-        ) ?? false;
+        );
       }
 
-      if (paymentSuccess && mounted) {
-        // Payment success
+      if (!mounted) return;
+
+      // PV-1/PV-2: verify the real payment status with the backend before
+      // treating the transaction as paid. Only an explicit PAID clears the cart
+      // and prints the receipt.
+      final verified = await _verifyPaymentWithServer(orderId);
+      if (!mounted) return;
+
+      if (verified == PaymentStatus.paid) {
         final auth = ref.read(authProvider);
         ref.read(cartProvider.notifier).clear();
         _customerNameController.clear();
@@ -235,15 +244,22 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           customerName: _customerNameController.text,
         );
       } else {
-        // Cancel PENDING order when user dismisses without paying
-        if (orderId.isNotEmpty) {
+        // Not proven paid. Cancel the pending order (best-effort) and inform
+        // the cashier. We never assume success on an unverified/pending state.
+        if (orderId.isNotEmpty &&
+            verified != PaymentStatus.pending &&
+            verified != PaymentStatus.unknown) {
           await orderService.cancelOrder(orderId);
         }
         setState(() => _isProcessing = false);
         if (mounted) {
+          final msg = verified == PaymentStatus.pending ||
+                  verified == PaymentStatus.unknown
+              ? 'Pembayaran belum terkonfirmasi. Cek ulang status sebelum menutup.'
+              : 'Pembayaran dibatalkan';
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pembayaran dibatalkan'),
+            SnackBar(
+              content: Text(msg),
               backgroundColor: AppColors.danger,
             ),
           );
@@ -259,6 +275,31 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     } finally {
       _submitting = false;
     }
+  }
+
+  /// Verifies payment status with the backend with a short retry window.
+  ///
+  /// PV-5: fails closed — network/parse errors are retried, and an
+  /// unconfirmed result returns [PaymentStatus.pending] rather than assuming
+  /// success. Only an explicit non-pending status is returned early.
+  Future<PaymentStatus> _verifyPaymentWithServer(String orderId) async {
+    if (orderId.isEmpty) return PaymentStatus.unknown;
+    final orderService = ref.read(orderServiceProvider);
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final status = await orderService.checkPaymentStatus(orderId);
+        if (status != PaymentStatus.pending) return status;
+      } on PaymentCheckException {
+        // Could not verify this attempt — retry.
+      } catch (_) {
+        // Defensive: never let an unexpected error be read as success.
+      }
+      if (attempt < 2) {
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+    // Could not prove payment within the window — treat as pending (NOT paid).
+    return PaymentStatus.pending;
   }
 
   String _parseError(dynamic e) {
@@ -443,6 +484,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           }
 
           return AlertDialog(
+            backgroundColor: AppColors.posCartBg,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             contentPadding: const EdgeInsets.all(24),
             content: SingleChildScrollView(
@@ -451,11 +493,11 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                 children: [
                   const Icon(Icons.check_circle, color: AppColors.success, size: 64),
                   const SizedBox(height: 16),
-                  const Text('Pembayaran Berhasil!',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  Text('Pembayaran Berhasil!',
+                      style: GoogleFonts.spaceMono(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
                   const SizedBox(height: 4),
                   Text('#$orderId',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontFamily: 'monospace')),
+                      style: GoogleFonts.spaceMono(fontSize: 12, color: Colors.white54)),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -518,9 +560,9 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: AppColors.posBg,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: AppColors.posDivider),
                     ),
                     child: Column(
                       children: [
@@ -531,21 +573,21 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                             children: [
                               Expanded(
                                 child: Text('${item.qty}x ${item.product.name}',
-                                    style: const TextStyle(fontSize: 12),
+                                    style: const TextStyle(fontSize: 12, color: Colors.white70),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis),
                               ),
                               Text('Rp ${formatter.format(item.subtotal)}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                             ],
                           ),
                         )),
-                        const Divider(height: 12),
+                        const Divider(height: 12, color: AppColors.posDivider),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('TOTAL',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900)),
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white)),
                             Text('Rp ${formatter.format(total)}',
                                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.success)),
                           ],
@@ -571,10 +613,10 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                       });
                     },
                     icon: const Icon(Icons.settings, size: 16),
-                    label: const Text('Atur Printer', style: TextStyle(fontWeight: FontWeight.w700)),
+                    label: Text('Atur Printer', style: GoogleFonts.spaceMono(fontWeight: FontWeight.w700, letterSpacing: 2)),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: const BorderSide(color: AppColors.primary),
+                      foregroundColor: AppColors.reserve,
+                      side: const BorderSide(color: AppColors.reserve),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -586,12 +628,12 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                   child: ElevatedButton.icon(
                     onPressed: isPrinting ? null : doPrint,
                     icon: isPrinting
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
                         : const Icon(Icons.print, size: 16),
-                    label: Text(isPrinting ? 'Mencetak...' : 'Cetak Struk', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    label: Text(isPrinting ? 'Mencetak...' : 'Cetak Struk', style: GoogleFonts.spaceMono(fontWeight: FontWeight.w900, letterSpacing: 2)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.reserve,
+                      foregroundColor: Colors.black,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -603,12 +645,12 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accent,
+                    backgroundColor: AppColors.reserve,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w900)),
+                  child: Text('OK', style: GoogleFonts.spaceMono(fontWeight: FontWeight.w900, letterSpacing: 3)),
                 ),
               ),
             ],
@@ -649,9 +691,12 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           final key = _previousCartKeys[idx];
           listState.removeItem(
             removeAt,
-            (context, animation) => SizeTransition(
-              sizeFactor: animation,
-              child: _buildRemovedItem(key),
+            (context, animation) => FadeTransition(
+              opacity: animation,
+              child: SizeTransition(
+                sizeFactor: animation,
+                child: _buildRemovedItem(key),
+              ),
             ),
             duration: const Duration(milliseconds: 200),
           );
@@ -682,92 +727,265 @@ class _CartPanelState extends ConsumerState<CartPanel> {
 
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.85,
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-            color: const Color(0xFFFFC567),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
+      elevation: 0,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      child: Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            left: BorderSide(color: AppColors.reserve, width: 4),
+          ),
+        ),
+        child: SafeArea(
+          child: Container(
+            color: AppColors.posCartBg,
+            child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: AppColors.posCardBg,
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('ORDER LIST',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 4),
-                    // Order type toggle
+                    Text('ORDER LIST',
+                        style: GoogleFonts.spaceMono(
+                            fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
+                    const SizedBox(height: 10),
+                    // Action row: order type + voucher + trash
                     Row(
                       children: [
                         _orderTypeChip('DINE IN', 'DINE_IN'),
                         const SizedBox(width: 6),
                         _orderTypeChip('TAKE AWAY', 'TAKE_AWAY'),
+                        const Spacer(),
+                        if (cart.isNotEmpty) ...[
+                          // Voucher toggle button
+                          GestureDetector(
+                            onTap: () => setState(() => _showVoucherInput = !_showVoucherInput),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              margin: const EdgeInsets.only(right: 6),
+                              decoration: BoxDecoration(
+                                color: _showVoucherInput ? AppColors.reserve.withValues(alpha: 0.15) : AppColors.posBg,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _showVoucherInput ? AppColors.reserve : AppColors.posDivider,
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(LucideIcons.ticket,
+                                      size: 13,
+                                      color: _showVoucherInput ? AppColors.reserve : Colors.white54),
+                                  const SizedBox(width: 4),
+                                  Text('Voucher',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: _showVoucherInput ? AppColors.reserve : Colors.white54,
+                                      )),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Clear cart
+                          GestureDetector(
+                            onTap: () {
+                              ref.read(cartProvider.notifier).clear();
+                              _customerNameController.clear();
+                              setState(() {
+                                _voucher = null;
+                                _voucherError = null;
+                                _showVoucherInput = false;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.danger,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(LucideIcons.trash2,
+                                  size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
                 ),
-                if (cart.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      ref.read(cartProvider.notifier).clear();
-                      setState(() {
-                        _voucher = null;
-                        _voucherError = null;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.danger,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(LucideIcons.trash2,
-                          size: 16, color: Colors.white),
-                    ),
-                  ),
-              ],
-            ),
-            ),
+              ),
 
-            // Customer name
-            if (cart.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: TextField(
-                  controller: _customerNameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    hintText: 'Nama Pelanggan (opsional)',
-                    prefixIcon: const Icon(Icons.person, size: 18),
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: Colors.grey.shade200),
+            // Expandable Voucher Input
+            if (cart.isNotEmpty && _showVoucherInput && _voucher == null)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                color: AppColors.posCartBg,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _voucherController,
+                        textCapitalization: TextCapitalization.characters,
+                        keyboardType: TextInputType.text,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Kode Voucher',
+                          hintStyle: const TextStyle(color: Colors.white30),
+                          filled: true,
+                          fillColor: AppColors.posBg,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          suffixIcon: _voucherController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18, color: Colors.white54),
+                                  onPressed: () {
+                                    _voucherController.clear();
+                                    setState(() {});
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.posDivider),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.posDivider),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.reserve, width: 1.5),
+                          ),
+                          errorText: _voucherError,
+                        ),
+                        onChanged: (_) => setState(() {}),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 42,
+                      child: ElevatedButton(
+                        onPressed: _validateVoucher,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.reserve,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text('Apply',
+                            style: GoogleFonts.spaceMono(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 2,
+                                fontSize: 12)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
             // Cart Items
             Expanded(
               child: cart.isEmpty
-                  ? const Center(
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(LucideIcons.shoppingBag,
-                              size: 48, color: Colors.grey),
-                          SizedBox(height: 12),
-                          Text('Keranjang kosong',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey)),
+                          const SizedBox(height: 40),
+                          
+                          // Icon reserve circle
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.reserve.withValues(alpha: 0.1),
+                            ),
+                            child: const Icon(
+                              LucideIcons.shoppingBag,
+                              size: 36,
+                              color: AppColors.reserve,
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 20),
+                          
+                          // Heading
+                          Text(
+                            'EMPTY ORDER',
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 3,
+                              color: Colors.white,
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          // Subtext
+                          Text(
+                            'Tap produk untuk memulai pesanan',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: Colors.white54,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          
+                          const SizedBox(height: 32),
+                          
+                          // Order type label
+                          Text(
+                            'ORDER TYPE',
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 3,
+                              color: AppColors.reserve,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          
+                          // Order type chips
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _orderTypeChip('DINE IN', 'DINE_IN'),
+                              const SizedBox(width: 8),
+                              _orderTypeChip('TAKE AWAY', 'TAKE_AWAY'),
+                            ],
+                          ),
+                          
+                           const SizedBox(height: 32),
+                           
+                           // Ready badge
+                           Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: AppColors.reserve.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'READY TO START',
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 2,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 40),
                         ],
                       ),
                     )
@@ -777,10 +995,16 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                       padding: const EdgeInsets.all(12),
                       itemBuilder: (context, index, animation) {
                         if (index >= cart.length) return const SizedBox.shrink();
-                        return SizeTransition(
-                          sizeFactor: animation,
-                          child: FadeTransition(
-                            opacity: animation,
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.3),
+                              end: Offset.zero,
+                            ).animate(CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            )),
                             child: Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: _CartItemTile(item: cart[index]),
@@ -791,76 +1015,88 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                     ),
             ),
 
-            // Voucher
+            // Customer name
             if (cart.isNotEmpty)
               Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: TextField(
+                  controller: _customerNameController,
+                  textCapitalization: TextCapitalization.words,
+                  keyboardType: TextInputType.text,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Nama Pelanggan (opsional)',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.white30,
+                    ),
+                    prefixIcon: const Icon(Icons.person, size: 18, color: Colors.white54),
+                    suffixIcon: _customerNameController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18, color: Colors.white54),
+                            onPressed: () {
+                              _customerNameController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: AppColors.posBg,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.posDivider),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.posDivider),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: AppColors.reserve, width: 1.5),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+
+            // Voucher applied badge (stays near footer)
+            if (cart.isNotEmpty && _voucher != null)
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: _voucher != null
-                    ? Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.green.shade300),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.posCardBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.success),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.ticket,
+                          size: 16, color: AppColors.success),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${_voucher!.voucherCode} (-Rp ${formatter.format(_discount)})',
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(LucideIcons.ticket,
-                                size: 16, color: Colors.green),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                '${_voucher!.voucherCode} (-Rp ${formatter.format(_discount)})',
-                                style: const TextStyle(
-                                    fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () => setState(() {
-                                _voucher = null;
-                                _voucherController.clear();
-                              }),
-                              child: const Icon(Icons.close, size: 16),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _voucherController,
-                              textCapitalization: TextCapitalization.characters,
-                              decoration: InputDecoration(
-                                hintText: 'Kode Voucher',
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 10),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                errorText: _voucherError,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            height: 42,
-                            child: ElevatedButton(
-                              onPressed: _validateVoucher,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8)),
-                              ),
-                              child: const Text('Apply',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12)),
-                            ),
-                          ),
-                        ],
                       ),
+                      GestureDetector(
+                        onTap: () => setState(() {
+                          _voucher = null;
+                          _voucherController.clear();
+                        }),
+                        child: const Icon(Icons.close, size: 16, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
             const SizedBox(height: 8),
@@ -869,10 +1105,15 @@ class _CartPanelState extends ConsumerState<CartPanel> {
             if (cart.isNotEmpty)
               Container(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).padding.bottom),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1A1A2E),
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(20)),
+                decoration: BoxDecoration(
+                  color: AppColors.posCardBg,
+                  border: Border(
+                    top: BorderSide(
+                      color: AppColors.reserve.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                  ),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 child: Column(
                   children: [
@@ -880,28 +1121,30 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Subtotal',
-                              style: TextStyle(
-                                  color: Colors.grey, fontSize: 12)),
+                          Text('Subtotal',
+                              style: GoogleFonts.spaceMono(
+                                  color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
                           Text('Rp ${formatter.format(total)}',
-                              style: const TextStyle(
+                              style: GoogleFonts.spaceMono(
                                   color: Colors.grey,
                                   fontSize: 12,
+                                  fontWeight: FontWeight.w700,
                                   decoration: TextDecoration.lineThrough)),
                         ],
                       ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('TOTAL',
-                            style: TextStyle(
+                        Text('TOTAL',
+                            style: GoogleFonts.spaceMono(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
                                 fontSize: 16)),
                         Text(
                           'Rp ${formatter.format(finalTotal)}',
-                          style: const TextStyle(
-                              color: Color(0xFFFFC567),
+                          style: GoogleFonts.spaceMono(
+                              color: AppColors.reserve,
                               fontWeight: FontWeight.w900,
                               fontSize: 22),
                         ),
@@ -917,7 +1160,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                               onPressed:
                                   _isProcessing ? null : () => _showConfirmDialog('CASH'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
+                                backgroundColor: AppColors.reserve,
                                 foregroundColor: Colors.black,
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12)),
@@ -927,10 +1170,10 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
-                                          strokeWidth: 2))
-                                  : const Text('CASH',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w900)),
+                                          strokeWidth: 2, color: Colors.black))
+                                  : Text('CASH',
+                                      style: GoogleFonts.spaceMono(
+                                          fontWeight: FontWeight.w900, letterSpacing: 3)),
                             ),
                           ),
                         ),
@@ -942,14 +1185,14 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                               onPressed:
                                   _isProcessing ? null : () => _showConfirmDialog('QRIS'),
                                 style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.success,
+                                backgroundColor: Colors.black,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12)),
                               ),
-                              child: const Text('QRIS',
-                                  style:
-                                      TextStyle(fontWeight: FontWeight.w900)),
+                              child: Text('QRIS',
+                                  style: GoogleFonts.spaceMono(
+                                      fontWeight: FontWeight.w900, letterSpacing: 3)),
                             ),
                           ),
                         ),
@@ -961,15 +1204,18 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildRemovedItem(String key) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppColors.posCardBg,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.posDivider),
       ),
       child: Row(
         children: [
@@ -978,7 +1224,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                 style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: Colors.grey.shade400)),
+                    color: Colors.white54)),
           ),
         ],
       ),
@@ -990,18 +1236,22 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     return GestureDetector(
       onTap: () => setState(() => _orderType = value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.success : Colors.white,
+          color: isActive ? AppColors.reserve : AppColors.posBg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black),
+          border: Border.all(
+            color: isActive ? AppColors.reserve : AppColors.posDivider,
+            width: isActive ? 1.5 : 1.2,
+          ),
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 10,
+          style: GoogleFonts.spaceMono(
+            fontSize: 11,
             fontWeight: FontWeight.w800,
-            color: isActive ? Colors.white : Colors.black,
+            letterSpacing: 1.5,
+            color: isActive ? Colors.black : Colors.white54,
           ),
         ),
       ),
@@ -1020,9 +1270,12 @@ class _CartItemTile extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.posCardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: AppColors.posDivider,
+          width: 1.5,
+        ),
       ),
       child: Row(
         children: [
@@ -1032,7 +1285,7 @@ class _CartItemTile extends ConsumerWidget {
               children: [
                 Text(item.product.name,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 13),
+                        fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 if (item.selectedTemp != null || item.selectedSize != null)
@@ -1040,15 +1293,15 @@ class _CartItemTile extends ConsumerWidget {
                     [item.selectedTemp, item.selectedSize]
                         .where((e) => e != null)
                         .join(' - '),
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 10,
-                        color: AppColors.primary,
+                        color: Colors.white70,
                         fontWeight: FontWeight.w600),
                   ),
                 const SizedBox(height: 4),
                 Text('Rp ${formatter.format(item.subtotal)}',
                     style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13)),
+                        fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white70)),
               ],
             ),
           ),
@@ -1061,9 +1314,9 @@ class _CartItemTile extends ConsumerWidget {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text('${item.qty}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w900, fontSize: 14)),
+              child: Text('${item.qty}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 14, color: Colors.white)),
               ),
               _QtyButton(
                 icon: Icons.add,
@@ -1094,11 +1347,13 @@ class _QtyButton extends StatelessWidget {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: AppColors.posBg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(
+            color: AppColors.posDivider,
+          ),
         ),
-        child: Icon(icon, size: 16),
+        child: Icon(icon, size: 16, color: Colors.white70),
       ),
     );
   }

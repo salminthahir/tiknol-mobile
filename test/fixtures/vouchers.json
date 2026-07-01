@@ -1,0 +1,27 @@
+{
+  "valid_voucher": {
+    "code": "DISC10K",
+    "type": "FIXED",
+    "value": 10000,
+    "minOrder": 40000,
+    "maxDiscount": 10000,
+    "expiresAt": "2025-12-31"
+  },
+  "invalid_voucher_min_order": {
+    "code": "DISC10K",
+    "type": "FIXED",
+    "value": 10000,
+    "minOrder": 40000,
+    "currentCartTotal": 30000
+  },
+  "expired_voucher": {
+    "code": "OLDPROMO",
+    "type": "PERCENTAGE",
+    "value": 20,
+    "expiresAt": "2024-01-01"
+  },
+  "invalid_code": {
+    "code": "FAKECODE",
+    "error": "Voucher tidak ditemukan"
+  }
+}

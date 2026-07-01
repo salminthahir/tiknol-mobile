@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../core/theme.dart';
 import 'skeleton.dart';
 
-/// Skeleton loading for POS screen (product grid)
+/// Skeleton loading for POS screen (product grid) — dark theme
 class PosSkeleton extends StatelessWidget {
   final bool isTablet;
   const PosSkeleton({super.key, required this.isTablet});
@@ -14,37 +15,37 @@ class PosSkeleton extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            color: AppColors.posCardBg,
+            border: Border(bottom: BorderSide(color: AppColors.posDivider)),
           ),
           child: Row(
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Skeleton(width: 80, height: 18, borderRadius: 4),
+                  const Skeleton(width: 80, height: 18, borderRadius: 4, isDark: true),
                   const SizedBox(height: 4),
-                  Skeleton(width: 140, height: 12, borderRadius: 4),
+                  const Skeleton(width: 140, height: 12, borderRadius: 4, isDark: true),
                 ],
               ),
               const Spacer(),
-              Skeleton(width: 60, height: 24, borderRadius: 8),
+              const Skeleton(width: 60, height: 24, borderRadius: 8, isDark: true),
             ],
           ),
         ),
         // Filter chips skeleton
         Container(
-          color: Colors.white,
+          color: AppColors.posBg,
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           child: Row(
             children: [
-              Skeleton(width: 50, height: 28, borderRadius: 14),
+              const Skeleton(width: 50, height: 28, borderRadius: 14, isDark: true),
               const SizedBox(width: 6),
-              Skeleton(width: 60, height: 28, borderRadius: 14),
+              const Skeleton(width: 60, height: 28, borderRadius: 14, isDark: true),
               const SizedBox(width: 6),
-              Skeleton(width: 70, height: 28, borderRadius: 14),
+              const Skeleton(width: 70, height: 28, borderRadius: 14, isDark: true),
               const SizedBox(width: 6),
-              Skeleton(width: 55, height: 28, borderRadius: 14),
+              const Skeleton(width: 55, height: 28, borderRadius: 14, isDark: true),
             ],
           ),
         ),
@@ -72,9 +73,9 @@ class _ProductCardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.posCardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
+        border: Border.all(color: AppColors.posDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,7 +83,7 @@ class _ProductCardSkeleton extends StatelessWidget {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
+                color: const Color(0xFF25252D),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               ),
             ),
@@ -92,9 +93,9 @@ class _ProductCardSkeleton extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Skeleton(width: double.infinity, height: 14, borderRadius: 4),
+                const Skeleton(width: double.infinity, height: 14, borderRadius: 4, isDark: true),
                 const SizedBox(height: 6),
-                Skeleton(width: 60, height: 12, borderRadius: 4),
+                const Skeleton(width: 60, height: 12, borderRadius: 4, isDark: true),
               ],
             ),
           ),

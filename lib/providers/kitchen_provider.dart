@@ -55,7 +55,7 @@ class KitchenState {
       page: page ?? this.page,
       isLoading: isLoading ?? this.isLoading,
       isRefreshing: isRefreshing ?? this.isRefreshing,
-      error: error ?? this.error,
+      error: error,
     );
   }
 

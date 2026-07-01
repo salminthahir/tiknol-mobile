@@ -1,0 +1,51 @@
+[
+  {
+    "id": "prod-001",
+    "name": "Americano",
+    "price": 25000,
+    "branchPrice": 23000,
+    "category": "COFFEE",
+    "isAvailable": true,
+    "hasCustomization": true,
+    "customizationOptions": {
+      "temps": ["ICE", "HOT"],
+      "sizes": ["M", "L"]
+    }
+  },
+  {
+    "id": "prod-002",
+    "name": "Espresso",
+    "price": 20000,
+    "category": "COFFEE",
+    "isAvailable": true,
+    "hasCustomization": false
+  },
+  {
+    "id": "prod-003",
+    "name": "Lemon Tea",
+    "price": 18000,
+    "category": "NON-COFFEE",
+    "isAvailable": true,
+    "hasCustomization": true,
+    "customizationOptions": {
+      "temps": ["ICE"],
+      "sizes": ["M", "L"]
+    }
+  },
+  {
+    "id": "prod-004",
+    "name": "French Fries",
+    "price": 15000,
+    "category": "SNACK",
+    "isAvailable": true,
+    "hasCustomization": false
+  },
+  {
+    "id": "prod-005",
+    "name": "Nasi Goreng",
+    "price": 35000,
+    "category": "MEALS",
+    "isAvailable": false,
+    "hasCustomization": false
+  }
+]

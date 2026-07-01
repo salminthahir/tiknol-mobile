@@ -45,9 +45,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     return Container(
       width: 72,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey.shade200)),
+      decoration: const BoxDecoration(
+        color: AppColors.posBg,
+        border: Border(right: BorderSide(color: AppColors.posBg)),
       ),
       child: Column(
         children: [
@@ -57,13 +57,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.black,
+              color: AppColors.reserve,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
               child: Text('O',
                   style: GoogleFonts.spaceMono(
-                      color: Colors.white,
+                      color: Colors.black,
                       fontWeight: FontWeight.w700,
                       fontSize: 18)),
             ),
@@ -102,7 +102,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 8,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade500,
+                  color: AppColors.reserve.withValues(alpha: 0.6),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -232,21 +232,21 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           width: 56,
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
+            color: isActive ? AppColors.reserve.withValues(alpha: 0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
             children: [
               Icon(icon,
                   size: 20,
-                  color: isActive ? AppColors.primary : Colors.grey.shade500),
+                  color: isActive ? AppColors.reserve : AppColors.reserve.withValues(alpha: 0.5)),
               const SizedBox(height: 4),
               Text(
                 label,
                 style: GoogleFonts.inter(
                   fontSize: 9,
                   fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                  color: isActive ? AppColors.primary : Colors.grey.shade500,
+                  color: isActive ? AppColors.reserve : AppColors.reserve.withValues(alpha: 0.5),
                 ),
               ),
             ],

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../providers/auth_provider.dart';
@@ -69,9 +70,19 @@ class ApiClient {
   }
 
   /// Override baseUrl from saved prefs. Called automatically on creation and after changing server URL.
+  ///
+  /// PV-4: in release builds we refuse cleartext (HTTP) base URLs and fall back
+  /// to the compiled HTTPS default. Debug builds keep cleartext for LAN dev.
   Future<void> refreshBaseUrl() async {
-    final baseUrl = await ServerConfigService.getBaseUrl();
-    _dio.options.baseUrl = baseUrl;
+    final savedUrl = await ServerConfigService.getBaseUrl();
+    if (kReleaseMode && !Constants.isSecureUrl(savedUrl)) {
+      // Saved/dev URL is insecure for a production build — ignore it.
+      _dio.options.baseUrl = Constants.isSecureUrl(Constants.baseUrl)
+          ? Constants.baseUrl
+          : 'https://api.nol.coffee';
+      return;
+    }
+    _dio.options.baseUrl = savedUrl;
   }
 
   Dio get client => _dio;

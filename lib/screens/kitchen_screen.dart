@@ -43,7 +43,7 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
     final isTablet = screenWidth > 700;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.posBg,
       body: SafeArea(
         child: kitchen.isLoading && _isAllEmpty(kitchen)
             ? _buildSkeleton(isTablet)
@@ -123,13 +123,13 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
   Widget _buildSkeletonHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.black, width: 4)),
+      decoration: BoxDecoration(
+        color: AppColors.posCardBg,
+        border: Border(bottom: BorderSide(color: AppColors.posDivider, width: 4)),
       ),
-      child: Row(
+      child: const Row(
         children: [
-          Skeleton(width: 160, height: 28, borderRadius: 4),
+          Skeleton(width: 160, height: 28, borderRadius: 4, isDark: true),
         ],
       ),
     );
@@ -140,10 +140,10 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
       padding: const EdgeInsets.all(10),
       margin: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: AppColors.posBg,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Skeleton(width: double.infinity, height: 20, borderRadius: 4),
+      child: const Skeleton(width: double.infinity, height: 20, borderRadius: 4, isDark: true),
     );
   }
 
@@ -152,18 +152,18 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 2),
+        color: AppColors.posCardBg,
+        border: Border.all(color: AppColors.posDivider, width: 2),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Skeleton(width: 80, height: 16, borderRadius: 4),
-          const SizedBox(height: 6),
-          Skeleton(width: double.infinity, height: 12, borderRadius: 4),
-          const SizedBox(height: 4),
-          Skeleton(width: 100, height: 12, borderRadius: 4),
+          Skeleton(width: 80, height: 16, borderRadius: 4, isDark: true),
+          SizedBox(height: 6),
+          Skeleton(width: double.infinity, height: 12, borderRadius: 4, isDark: true),
+          SizedBox(height: 4),
+          Skeleton(width: 100, height: 12, borderRadius: 4, isDark: true),
         ],
       ),
     );
@@ -224,19 +224,21 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
   Widget _buildPhoneTabs(KitchenState kitchen) {
     final tabs = [
       _TabConfig('PAID', 'Baru', const Color(0xFFFBC02D)),
-      _TabConfig('PREPARING', 'Proses', Colors.black),
-      _TabConfig('READY', 'Siap', const Color(0xFF00995E)),
-      _TabConfig('COMPLETED', 'Selesai', Colors.grey.shade400),
+      _TabConfig('PREPARING', 'Proses', Colors.white70),
+      _TabConfig('READY', 'Siap', const Color(0xFF4CAF50)),
+      _TabConfig('COMPLETED', 'Selesai', Colors.grey.shade500),
     ];
 
     return Container(
-      color: Colors.white,
+      color: AppColors.posCardBg,
       child: TabBar(
         controller: _tabController,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
         indicatorWeight: 3,
-        indicatorColor: AppColors.primary,
+        indicatorColor: AppColors.reserve,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white54,
         labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12),
         unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 12),
         tabs: tabs.map((t) {
@@ -290,25 +292,25 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
         status: 'PAID',
         label: 'BARU',
         color: const Color(0xFFFBC02D),
-        bgColor: const Color(0xFFFFF8E1),
+        bgColor: AppColors.posBg,
       ),
       _KanbanColumn(
         status: 'PREPARING',
         label: 'DIPROSES',
-        color: Colors.black,
-        bgColor: const Color(0xFFF5F5F5),
+        color: Colors.white70,
+        bgColor: AppColors.posBg,
       ),
       _KanbanColumn(
         status: 'READY',
         label: 'SIAP',
-        color: const Color(0xFF00995E),
-        bgColor: const Color(0xFFE8F5E9),
+        color: const Color(0xFF4CAF50),
+        bgColor: AppColors.posBg,
       ),
       _KanbanColumn(
         status: 'COMPLETED',
         label: 'SELESAI',
         color: Colors.grey.shade500,
-        bgColor: const Color(0xFFF5F5F5),
+        bgColor: AppColors.posBg,
       ),
     ];
 
@@ -321,7 +323,7 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
             decoration: BoxDecoration(
               color: col.bgColor,
               border: Border(
-                right: BorderSide(color: Colors.grey.shade300, width: 1),
+                right: BorderSide(color: AppColors.posDivider, width: 1),
               ),
             ),
             child: Column(
@@ -330,7 +332,7 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.posCardBg,
                     border: Border(
                       bottom: BorderSide(color: col.color, width: 3),
                     ),
@@ -352,13 +354,14 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
                           fontWeight: FontWeight.w900,
                           fontSize: 12,
                           letterSpacing: 0.5,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: col.color.withValues(alpha: 0.12),
+                          color: col.color.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -371,23 +374,6 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
                         ),
                       ),
                       const Spacer(),
-                      if (orders.length > 20)
-                        TextButton(
-                          onPressed: () {},
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(0, 0),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            'More',
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: col.color,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -417,14 +403,14 @@ class _KitchenScreenState extends ConsumerState<KitchenScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.inbox, size: 32, color: Colors.grey.shade300),
+          Icon(LucideIcons.inbox, size: 32, color: Colors.grey.shade600),
           const SizedBox(height: 8),
           Text(
             'Tidak ada $label',
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade400,
+              color: Colors.grey.shade500,
             ),
           ),
         ],
@@ -530,8 +516,8 @@ class _CompactOrderCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black, width: 2),
+        color: AppColors.posCardBg,
+        border: Border.all(color: AppColors.posDivider, width: 2),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -544,7 +530,7 @@ class _CompactOrderCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: actionConfig.headerBg,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-              border: const Border(bottom: BorderSide(color: Colors.black, width: 2)),
+              border: Border(bottom: BorderSide(color: AppColors.posDivider, width: 2)),
             ),
             child: Row(
               children: [
@@ -587,17 +573,15 @@ class _CompactOrderCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
-                          color: Colors.black,
+                          color: Colors.white,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        border: Border.all(color: Colors.grey.shade300),
+                        color: AppColors.posBg,
+                        border: Border.all(color: AppColors.posDivider),
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
@@ -605,7 +589,7 @@ class _CompactOrderCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 8,
                           fontWeight: FontWeight.w800,
-                          color: Colors.grey.shade600,
+                          color: Colors.white54,
                         ),
                       ),
                     ),
@@ -614,8 +598,8 @@ class _CompactOrderCard extends StatelessWidget {
 
                 const SizedBox(height: 6),
 
-                // Items (compact, max 3 visible)
-                ...itemList.take(3).map((item) {
+                // Items — tampilkan SEMUA tanpa batasan
+                ...itemList.map((item) {
                   final custom = (item as Map<String, dynamic>)['custom'] as Map<String, dynamic>?;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 3),
@@ -626,7 +610,7 @@ class _CompactOrderCard extends StatelessWidget {
                           width: 18,
                           height: 18,
                           decoration: BoxDecoration(
-                            color: Colors.black,
+                            color: AppColors.posDivider,
                             borderRadius: BorderRadius.circular(3),
                           ),
                           child: Center(
@@ -651,9 +635,8 @@ class _CompactOrderCard extends StatelessWidget {
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   height: 1.3,
+                                  color: Colors.white,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
                               if (custom != null) ...[
                                 const SizedBox(height: 1),
@@ -676,19 +659,7 @@ class _CompactOrderCard extends StatelessWidget {
                   );
                 }),
 
-                if (itemList.length > 3)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 23, top: 2),
-                    child: Text(
-                      '+${itemList.length - 3} item lainnya',
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey.shade500,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
+
               ],
             ),
           ),
@@ -702,8 +673,8 @@ class _CompactOrderCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: actionConfig.buttonBg,
-                  border: const Border(
-                    top: BorderSide(color: Colors.black, width: 2),
+                  border: Border(
+                    top: BorderSide(color: AppColors.posDivider, width: 2),
                   ),
                   borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
                 ),
@@ -728,8 +699,8 @@ class _CompactOrderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        border: Border.all(color: Colors.grey.shade300, width: 1),
+        color: AppColors.posBg,
+        border: Border.all(color: AppColors.posDivider, width: 1),
         borderRadius: BorderRadius.circular(2),
       ),
       child: Text(
@@ -737,7 +708,7 @@ class _CompactOrderCard extends StatelessWidget {
         style: GoogleFonts.inter(
           fontSize: 7,
           fontWeight: FontWeight.w800,
-          color: Colors.grey.shade700,
+          color: Colors.white54,
         ),
       ),
     );
@@ -749,32 +720,32 @@ class _CompactOrderCard extends StatelessWidget {
         return _ActionConfig(
           headerBg: const Color(0xFFFBC02D),
           headerText: Colors.black,
-          buttonBg: Colors.black,
+          buttonBg: AppColors.posBg,
           buttonText: Colors.white,
           buttonLabel: 'TERIMA / MASAK',
         );
       case 'PREPARING':
         return _ActionConfig(
-          headerBg: Colors.white,
-          headerText: Colors.black,
-          buttonBg: Colors.white,
-          buttonText: Colors.black,
+          headerBg: AppColors.posCardBg,
+          headerText: Colors.white,
+          buttonBg: AppColors.posCardBg,
+          buttonText: Colors.white,
           buttonLabel: 'SELESAI MASAK',
         );
       case 'READY':
         return _ActionConfig(
-          headerBg: const Color(0xFF00995E),
+          headerBg: const Color(0xFF4CAF50),
           headerText: Colors.white,
-          buttonBg: const Color(0xFF00995E),
+          buttonBg: const Color(0xFF4CAF50),
           buttonText: Colors.white,
           buttonLabel: 'PANGGIL / SELESAI',
         );
       default:
         return _ActionConfig(
-          headerBg: Colors.grey.shade200,
-          headerText: Colors.grey.shade600,
-          buttonBg: Colors.grey.shade200,
-          buttonText: Colors.grey.shade600,
+          headerBg: AppColors.posBg,
+          headerText: Colors.white54,
+          buttonBg: AppColors.posBg,
+          buttonText: Colors.white54,
           buttonLabel: '',
         );
     }

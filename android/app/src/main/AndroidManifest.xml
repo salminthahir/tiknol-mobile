@@ -11,6 +11,8 @@
         android:label="tiknol_reserve_mobile"
         android:name="${applicationName}"
         android:resizeableActivity="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

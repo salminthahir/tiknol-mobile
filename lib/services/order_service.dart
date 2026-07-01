@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../models/cart_item.dart';
+import '../models/payment_status.dart';
 
 final orderServiceProvider = Provider((ref) => OrderService(ref));
 
@@ -100,21 +102,39 @@ class OrderService {
     }
   }
 
-  Future<String> checkPaymentStatus(String orderId) async {
-    if (orderId.isEmpty) return 'PENDING';
+  /// Returns the server-verified payment status for [orderId].
+  ///
+  /// Security (PV-1/PV-2/PV-5): payment success must come only from the
+  /// backend, which is expected to verify the transaction against Duitku
+  /// `transactionStatus` using HMAC-SHA256. This method fails closed: on any
+  /// transport error, invalid response, or unrecognized status it throws
+  /// [PaymentCheckException] instead of silently returning a pending/paid
+  /// state. Callers must distinguish "not yet paid" from "could not verify".
+  Future<PaymentStatus> checkPaymentStatus(String orderId) async {
+    if (orderId.isEmpty) {
+      throw ArgumentError('orderId kosong');
+    }
+    final api = ref.read(apiClientProvider);
     try {
-      final api = ref.read(apiClientProvider);
       final response = await api.client.post(
         '/api/payment/check-status',
         data: {'orderId': orderId},
       );
 
-      if (response.statusCode == 200 && response.data['status'] != null) {
-        return response.data['status'] as String;
+      if (response.statusCode == 200 && response.data is Map) {
+        final status = paymentStatusFromString(
+          (response.data as Map)['status']?.toString(),
+        );
+        if (status == PaymentStatus.unknown) {
+          throw PaymentCheckException('Status tidak dikenal dari server');
+        }
+        return status;
       }
-      return 'PENDING';
-    } catch (_) {
-      return 'PENDING';
+      throw PaymentCheckException(
+        'Respons tidak valid (HTTP ${response.statusCode})',
+      );
+    } on DioException catch (e) {
+      throw PaymentCheckException('Gangguan jaringan: ${e.type.name}');
     }
   }
 }

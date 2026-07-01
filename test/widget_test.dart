@@ -5,6 +5,7 @@ import 'package:tiknol_reserve_mobile/main.dart';
 void main() {
   testWidgets('App starts correctly', (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: TiknolPosApp()));
-    expect(find.text('Staff Access'), findsOneWidget);
+    // Smoke test: app renders login screen dengan label Employee ID
+    expect(find.text('EMPLOYEE ID'), findsOneWidget);
   });
 }

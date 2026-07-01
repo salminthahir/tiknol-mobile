@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
+  static const posBg = Color(0xFF1E1E24);
+  static const posCartBg = Color(0xFF25252D);
+  static const posCardBg = Color(0xFF2C2C35);
+  static const posDivider = Color(0xFF3A3A45);
   static const bg = Color(0xFFF5F0E8);
   static const surface = Colors.white;
   static const primary = Color(0xFF552CB7);
-  static const accent = Color(0xFFFFC567);
+  static const accent = Color(0xFFFBC02D);
+  static const reserve = Color(0xFFFBC02D);
+  static const reserveSurface = Color(0xFF1A1A1A);
+  static const reserveOutline = Color(0xFFF5F5F5);
   static const danger = Color(0xFFFD5A46);
   static const success = Color(0xFF00995E);
   static const textPrimary = Color(0xFF1A1A2E);
@@ -27,7 +34,7 @@ class AppTheme {
         bodyColor: AppColors.textPrimary,
         displayColor: AppColors.textPrimary,
       ),
-      scaffoldBackgroundColor: AppColors.bg,
+      scaffoldBackgroundColor: AppColors.posBg,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,

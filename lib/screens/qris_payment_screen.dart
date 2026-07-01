@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../core/theme.dart';
+import '../models/payment_status.dart';
 import '../services/order_service.dart';
 
 class QrisPaymentScreen extends ConsumerStatefulWidget {
@@ -86,7 +87,7 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
 
         if (!mounted) return;
 
-        if (status == 'PAID') {
+        if (status == PaymentStatus.paid) {
           _paymentStatus = 'PAID';
           _stopTimers();
           await _playSuccessSound();
@@ -94,11 +95,16 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
           // Auto-navigate back after short delay
           await Future.delayed(const Duration(milliseconds: 500));
           if (mounted) Navigator.pop(context, true);
-        } else if (status == 'CANCELLED' || status == 'FAILED') {
-          _paymentStatus = status;
+        } else if (status == PaymentStatus.cancelled ||
+            status == PaymentStatus.failed ||
+            status == PaymentStatus.expired) {
+          _paymentStatus =
+              status == PaymentStatus.expired ? 'EXPIRED' : 'FAILED';
           _stopTimers();
           setState(() {});
         }
+      } on PaymentCheckException {
+        // PV-5: could not verify this tick — keep polling, never assume paid.
       } catch (e) {
         // Silently retry on next tick
       } finally {
