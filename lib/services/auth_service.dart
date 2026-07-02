@@ -31,6 +31,7 @@ class AuthService {
       await _storage.write(key: Constants.userRoleKey, value: user['role'] ?? '');
       await _storage.write(key: Constants.branchIdKey, value: user['branchId'] ?? '');
       await _storage.write(key: Constants.branchNameKey, value: user['branchName'] ?? '');
+      await _storage.write(key: Constants.branchCodeKey, value: user['branchCode'] ?? '');
 
       return user;
     }
@@ -53,6 +54,7 @@ class AuthService {
       'role': await _storage.read(key: Constants.userRoleKey),
       'branchId': await _storage.read(key: Constants.branchIdKey),
       'branchName': await _storage.read(key: Constants.branchNameKey),
+      'branchCode': await _storage.read(key: Constants.branchCodeKey),
     };
   }
 

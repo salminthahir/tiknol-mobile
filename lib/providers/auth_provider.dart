@@ -10,6 +10,7 @@ class AuthState {
   final String? role;
   final String? branchId;
   final String? branchName;
+  final String? branchCode;
   final String? error;
 
   const AuthState({
@@ -20,6 +21,7 @@ class AuthState {
     this.role,
     this.branchId,
     this.branchName,
+    this.branchCode,
     this.error,
   });
 
@@ -31,6 +33,7 @@ class AuthState {
     String? role,
     String? branchId,
     String? branchName,
+    String? branchCode,
     String? error,
   }) {
     return AuthState(
@@ -41,6 +44,7 @@ class AuthState {
       role: role ?? this.role,
       branchId: branchId ?? this.branchId,
       branchName: branchName ?? this.branchName,
+      branchCode: branchCode ?? this.branchCode,
       error: error,
     );
   }
@@ -70,6 +74,7 @@ class AuthNotifier extends Notifier<AuthState> {
       role: saved['role'],
       branchId: saved['branchId'],
       branchName: saved['branchName'],
+      branchCode: saved['branchCode'],
     );
   }
 
@@ -87,6 +92,7 @@ class AuthNotifier extends Notifier<AuthState> {
         role: user['role'],
         branchId: user['branchId'],
         branchName: user['branchName'],
+        branchCode: user['branchCode'],
       );
       return true;
     } on DioException catch (e) {

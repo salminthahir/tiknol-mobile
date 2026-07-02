@@ -34,4 +34,5 @@ class Constants {
   static const String userRoleKey = 'user_role';
   static const String branchIdKey = 'branch_id';
   static const String branchNameKey = 'branch_name';
+  static const String branchCodeKey = 'branch_code';
 }

@@ -52,7 +52,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       child: Column(
         children: [
           const SizedBox(height: 16),
-          // Logo
+          // Logo — branch code (3 letters)
           Container(
             width: 40,
             height: 40,
@@ -61,11 +61,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
-              child: Text('O',
-                  style: GoogleFonts.spaceMono(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18)),
+              child: Text(
+                (auth.branchCode ?? 'XXX').toUpperCase(),
+                style: GoogleFonts.spaceMono(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12),
+              ),
             ),
           ),
           const SizedBox(height: 24),

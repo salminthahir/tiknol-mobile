@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/cart_provider.dart';
 import '../models/product.dart';
+import '../services/printer_service.dart';
 import 'widgets/cart_panel.dart';
 import 'widgets/skeleton_screens.dart';
 
@@ -149,6 +150,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
   // ── Tablet Header ──
   Widget _buildTabletHeader(AuthState auth) {
+    final printerService = PrinterService();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
@@ -157,51 +159,71 @@ class _PosScreenState extends ConsumerState<PosScreen>
       ),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text.rich(
-                TextSpan(
-                  style: GoogleFonts.spaceMono(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    letterSpacing: -0.5,
-                    color: Colors.white,
-                  ),
-                  children: const [
-                    TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
-                    TextSpan(text: 'NOL POS'),
-                  ],
-                ),
+          Text.rich(
+            TextSpan(
+              style: GoogleFonts.spaceMono(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                letterSpacing: -0.5,
+                color: Colors.white,
               ),
+              children: const [
+                TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
+                TextSpan(text: 'NOL POS'),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                                color: AppColors.success, shape: BoxShape.circle)),
+                        const SizedBox(width: 6),
+                        Text('OPEN',
+                            style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.success)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  StreamBuilder<bool>(
+                    stream: printerService.connectionState,
+                    initialData: printerService.isConnected,
+                    builder: (context, snapshot) {
+                      final connected = snapshot.data ?? false;
+                      return Icon(
+                        LucideIcons.printer,
+                        size: 18,
+                        color: connected ? AppColors.success : AppColors.danger,
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
               Text(
                 '${auth.branchName ?? ''} • ${auth.userName ?? ''}',
                 style: GoogleFonts.inter(fontSize: 12, color: Colors.white70),
               ),
             ],
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                        color: AppColors.success, shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-                Text('OPEN',
-                    style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.success)),
-              ],
-            ),
           ),
         ],
       ),
@@ -210,6 +232,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
   // ── Phone Header ──
   Widget _buildPhoneHeader(AuthState auth, int cartCount) {
+    final printerService = PrinterService();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -238,29 +261,72 @@ class _PosScreenState extends ConsumerState<PosScreen>
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text.rich(
-                  TextSpan(
-                    style: GoogleFonts.spaceMono(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      letterSpacing: -0.5,
-                      color: Colors.white,
-                    ),
-                    children: const [
-                      TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
-                      TextSpan(text: 'NOL POS'),
-                    ],
-                  ),
+            child: Text.rich(
+              TextSpan(
+                style: GoogleFonts.spaceMono(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  letterSpacing: -0.5,
+                  color: Colors.white,
                 ),
-                Text('${auth.branchName ?? ''} • ${auth.userName ?? ''}',
-                    style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
-              ],
+                children: const [
+                  TextSpan(text: '.', style: TextStyle(color: AppColors.reserve)),
+                  TextSpan(text: 'NOL POS'),
+                ],
+              ),
             ),
           ),
-          if (cartCount > 0)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                                color: AppColors.success, shape: BoxShape.circle)),
+                        const SizedBox(width: 4),
+                        Text('OPEN',
+                            style: GoogleFonts.inter(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.success)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  StreamBuilder<bool>(
+                    stream: printerService.connectionState,
+                    initialData: printerService.isConnected,
+                    builder: (context, snapshot) {
+                      final connected = snapshot.data ?? false;
+                      return Icon(
+                        LucideIcons.printer,
+                        size: 16,
+                        color: connected ? AppColors.success : AppColors.danger,
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text('${auth.branchName ?? ''} • ${auth.userName ?? ''}',
+                  style: GoogleFonts.inter(fontSize: 9, color: Colors.white70)),
+            ],
+          ),
+          if (cartCount > 0) ...[
+            const SizedBox(width: 8),
             Builder(
               builder: (ctx) => GestureDetector(
                 onTap: () => Scaffold.of(ctx).openEndDrawer(),
@@ -284,6 +350,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
