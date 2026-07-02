@@ -15,9 +15,12 @@ class PrinterService {
   // BLE
   BluetoothDevice? _bleDevice;
   BluetoothCharacteristic? _bleCharacteristic;
+  StreamSubscription<BluetoothConnectionState>? _bleConnectionSub;
+  bool _bleIsConnected = false;
 
   // Classic
   final _classicService = BluetoothClassicService();
+  String? _lastClassicAddress;
 
   String? _currentType; // 'ble' or 'classic'
 
@@ -26,7 +29,7 @@ class PrinterService {
 
   bool get isConnected {
     if (_currentType == 'ble') {
-      return _bleDevice != null && _bleCharacteristic != null;
+      return _bleDevice != null && _bleCharacteristic != null && _bleIsConnected;
     }
     if (_currentType == 'classic') {
       return _classicService.isConnected;
@@ -165,12 +168,20 @@ class PrinterService {
     final found = <Map<String, dynamic>>[];
     try {
       await FlutterBluePlus.stopScan();
-      await FlutterBluePlus.startScan(timeout: timeout);
 
-      // Collect results until timeout
+      final completer = Completer<List<ScanResult>>();
+      final sub = FlutterBluePlus.scanResults.listen((results) {
+        if (!completer.isCompleted) completer.complete(List.from(results));
+      });
+
+      await FlutterBluePlus.startScan(timeout: timeout);
       await Future.delayed(timeout);
-      final results = await FlutterBluePlus.scanResults.first;
+      await sub.cancel();
       await FlutterBluePlus.stopScan();
+
+      final results = completer.isCompleted
+          ? await completer.future
+          : <ScanResult>[];
 
       for (final r in results) {
         final name = r.device.platformName;
@@ -184,7 +195,9 @@ class PrinterService {
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      print('_scanBle error: $e');
+    }
     return found;
   }
 
@@ -212,10 +225,18 @@ class PrinterService {
   // ── Connect ──
 
   Future<bool> connectBle(BluetoothDevice device) async {
+    // Already connected to this device — no-op
+    if (_bleDevice?.remoteId.str == device.remoteId.str && _bleIsConnected) {
+      return true;
+    }
+
     await disconnect();
+
     try {
-      await device.connect(autoConnect: false, mtu: null);
-      final services = await device.discoverServices();
+      await device.connect(autoConnect: false, mtu: null)
+          .timeout(const Duration(seconds: 10));
+      final services = await device.discoverServices()
+          .timeout(const Duration(seconds: 5));
       for (final service in services) {
         for (final characteristic in service.characteristics) {
           if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
@@ -227,7 +248,21 @@ class PrinterService {
       }
       if (_bleCharacteristic != null) {
         _bleDevice = device;
+        _bleIsConnected = true;
         _currentType = 'ble';
+
+        // Listen for external disconnects
+        _bleConnectionSub?.cancel();
+        _bleConnectionSub = device.connectionState.listen((state) {
+          _bleIsConnected = state == BluetoothConnectionState.connected;
+          if (!_bleIsConnected) {
+            _bleDevice = null;
+            _bleCharacteristic = null;
+            _currentType = null;
+            _connectionStateController.add(false);
+          }
+        });
+
         _connectionStateController.add(true);
         await _saveDevice('ble', device.remoteId.str, device.platformName);
         return true;
@@ -236,14 +271,20 @@ class PrinterService {
         return false;
       }
     } catch (e) {
+      print('connectBle error: $e');
       return false;
     }
   }
 
   Future<bool> connectClassic(String address, String name) async {
+    if (_currentType == 'classic' && _classicService.isConnected && _lastClassicAddress == address) {
+      return true;
+    }
+
     await disconnect();
     final ok = await _classicService.connect(address);
     if (ok) {
+      _lastClassicAddress = address;
       _currentType = 'classic';
       _connectionStateController.add(true);
       await _saveDevice('classic', address, name);
@@ -253,13 +294,22 @@ class PrinterService {
   }
 
   Future<void> disconnect() async {
+    _bleConnectionSub?.cancel();
+    _bleConnectionSub = null;
+
     if (_bleDevice != null) {
-      try { await _bleDevice!.disconnect(); } catch (_) {}
+      try {
+        await _bleDevice!.disconnect().timeout(const Duration(seconds: 5));
+      } catch (e) {
+        print('BLE disconnect error: $e');
+      }
       _bleDevice = null;
       _bleCharacteristic = null;
+      _bleIsConnected = false;
     }
     await _classicService.disconnect();
     _currentType = null;
+    _lastClassicAddress = null;
     _connectionStateController.add(false);
   }
 
@@ -317,6 +367,12 @@ class PrinterService {
     final id = saved['id'];
     if (id == null || type == null) return false;
 
+    // Already connected to this device — no-op
+    if (isConnected) {
+      if (type == 'ble' && _bleDevice?.remoteId.str == id) return true;
+      if (type == 'classic' && _lastClassicAddress == id) return true;
+    }
+
     if (type == 'classic') {
       return await connectClassic(id, saved['name'] ?? 'Unknown');
     }
@@ -329,15 +385,24 @@ class PrinterService {
       }
     }
 
-    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 3));
-    await Future.delayed(const Duration(seconds: 3));
-    final results = await FlutterBluePlus.scanResults.first;
-    await FlutterBluePlus.stopScan();
-
-    for (final r in results) {
-      if (r.device.remoteId.str == id) {
-        return await connectBle(r.device);
+    try {
+      await FlutterBluePlus.stopScan();
+      final completer = Completer<List<ScanResult>>();
+      final sub = FlutterBluePlus.scanResults.listen((results) {
+        if (!completer.isCompleted) completer.complete(List.from(results));
+      });
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 3));
+      await sub.cancel();
+      await FlutterBluePlus.stopScan();
+      final results = completer.isCompleted ? await completer.future : <ScanResult>[];
+      for (final r in results) {
+        if (r.device.remoteId.str == id) {
+          return await connectBle(r.device);
+        }
       }
+    } catch (e) {
+      print('reconnectToSaved scan error: $e');
     }
     return false;
   }

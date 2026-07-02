@@ -5,6 +5,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme.dart';
+import '../../models/cart_item.dart';
+import '../../models/product.dart';
+import '../../services/printer_service.dart';
+import '../../services/receipt_service.dart';
+import '../../services/receipt_template_service.dart';
 
 class OrderDetailPanel extends ConsumerWidget {
   final Map<String, dynamic> order;
@@ -54,7 +59,7 @@ class OrderDetailPanel extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ═══ ACTION BUTTON ═══
-          _buildReprintButton(),
+          _buildReprintButton(context),
         ],
       ),
     );
@@ -396,38 +401,104 @@ class OrderDetailPanel extends ConsumerWidget {
   // ═══════════════════════════════════════════════
   // REPRINT BUTTON
   // ═══════════════════════════════════════════════
-  Widget _buildReprintButton() {
-    return Consumer(
-      builder: (context, ref, child) {
-        return SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Reprint feature coming soon')),
+  Widget _buildReprintButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: () async {
+          final printer = PrinterService();
+          if (!printer.isConnected) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Printer tidak terhubung. Atur printer di menu Printer.'),
+                backgroundColor: AppColors.danger,
+              ),
+            );
+            return;
+          }
+
+          try {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Mencetak ulang struk...'),
+                backgroundColor: AppColors.primary,
+              ),
+            );
+
+            final template = await ReceiptTemplateService.load();
+            final rawItems = _parseItems(order['items']);
+            final items = rawItems.map((raw) {
+              final custom = raw['custom'] as Map<String, dynamic>?;
+              final product = Product(
+                id: raw['productId']?.toString() ?? raw['id']?.toString() ?? '',
+                name: raw['name']?.toString() ?? '',
+                price: _parseNum(raw['price']).toInt(),
+                category: 'OTHER',
               );
-            },
-            icon: Icon(LucideIcons.printer, size: 16, color: Colors.white),
-            label: Text(
-              'REPRINT RECEIPT',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                letterSpacing: 0.5,
+              return CartItem(
+                product: product,
+                qty: _parseNum(raw['qty']).toInt(),
+                selectedTemp: custom?['temp']?.toString(),
+                selectedSize: custom?['size']?.toString(),
+              );
+            }).toList();
+
+            final branch = order['branch'] as Map<String, dynamic>?;
+            final branchName = branch?['name']?.toString() ?? '';
+
+            final bytes = await ReceiptGenerator.generateEscPosBytes(
+              orderId: order['id']?.toString() ?? '',
+              items: items,
+              subtotal: _parseNum(order['subtotal']).toInt(),
+              discount: _parseNum(order['discountAmount']).toInt(),
+              total: _parseNum(order['totalAmount']).toInt(),
+              paymentType: order['paymentType']?.toString() ?? '',
+              cashierName: order['cashierName']?.toString() ?? '',
+              branchName: branchName,
+              customerName: order['customerName']?.toString(),
+              template: template,
+            );
+            await printer.sendBytes(bytes.toList());
+
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Struk berhasil dicetak ulang'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 2),
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            );
+          } catch (e) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Gagal cetak ulang: $e'),
+                backgroundColor: AppColors.danger,
               ),
-            ),
+            );
+          }
+        },
+        icon: const Icon(LucideIcons.printer, size: 16, color: Colors.white),
+        label: Text(
+          'REPRINT RECEIPT',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+            letterSpacing: 0.5,
           ),
-        );
-      },
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
     );
   }
 

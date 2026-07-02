@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../../core/theme.dart';
 import '../../providers/cart_provider.dart';
@@ -37,6 +38,27 @@ class _CartPanelState extends ConsumerState<CartPanel> {
   bool _showVoucherInput = false;
   VoucherResult? _voucher;
   String? _voucherError;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPrinterConnection();
+  }
+
+  Future<void> _refreshPrinterConnection() async {
+    final printerService = PrinterService();
+    try {
+      final ok = await printerService.reconnectToSaved()
+          .timeout(const Duration(seconds: 5));
+      if (!ok) {
+        await printerService.disconnect(); // Clear stale state
+      }
+    } catch (e) {
+      debugPrint('Printer reconnect error: $e');
+      await printerService.disconnect();
+    }
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -510,38 +532,45 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                   ),
                   // Printer status
                   const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: printerService.isConnected
-                          ? AppColors.success.withValues(alpha: 0.1)
-                          : AppColors.danger.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: printerService.isConnected ? AppColors.success : AppColors.danger,
-                            shape: BoxShape.circle,
-                          ),
+                  StreamBuilder<bool>(
+                    stream: printerService.connectionState,
+                    initialData: printerService.isConnected,
+                    builder: (ctx, snapshot) {
+                      final connected = snapshot.data ?? false;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: connected
+                              ? AppColors.success.withValues(alpha: 0.1)
+                              : AppColors.danger.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          printerService.isConnected
-                              ? 'Printer: ${printerService.connectedDeviceName ?? 'Terhubung'}'
-                              : 'Printer tidak terhubung',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: printerService.isConnected ? AppColors.success : AppColors.danger,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: connected ? AppColors.success : AppColors.danger,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              connected
+                                  ? 'Printer: ${printerService.connectedDeviceName ?? 'Terhubung'}'
+                                  : 'Printer tidak terhubung',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: connected ? AppColors.success : AppColors.danger,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                   // Print status
                   if (printStatus != null) ...[
@@ -603,15 +632,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      final nav = Navigator.of(context);
-                      nav.pop();
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (mounted) {
-                          nav.pushNamed('/printer');
-                        }
-                      });
-                    },
+                    onPressed: () => _showPrinterConnectionDialog(setState),
                     icon: const Icon(Icons.settings, size: 16),
                     label: Text('Atur Printer', style: GoogleFonts.spaceMono(fontWeight: FontWeight.w700, letterSpacing: 2)),
                     style: OutlinedButton.styleFrom(
@@ -654,6 +675,202 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                 ),
               ),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showPrinterConnectionDialog(StateSetter parentSetState) {
+    final printerService = PrinterService();
+
+    List<Map<String, dynamic>> devices = [];
+    bool isScanning = true;
+    bool isConnecting = false;
+    String? connectingId;
+    String? errorMsg;
+    bool loaded = false;
+
+    Future<void> doScan(StateSetter setS, BuildContext ctx) async {
+      setS(() { isScanning = true; errorMsg = null; });
+      try {
+        final all = await printerService.scanAllDevices(
+          timeout: const Duration(seconds: 8),
+          filterPrinter: true,
+        );
+        if (!ctx.mounted) return;
+        setS(() { devices = all; isScanning = false; });
+      } catch (e) {
+        if (!ctx.mounted) return;
+        setS(() { isScanning = false; errorMsg = 'Gagal scan: $e'; });
+      }
+    }
+
+    Future<void> loadBonded(StateSetter setS, BuildContext ctx) async {
+      try {
+        final bonded = await printerService.getBondedDevices(filterPrinter: true);
+        if (!ctx.mounted) return;
+        if (bonded.isNotEmpty) {
+          setS(() { devices = bonded; isScanning = false; });
+        } else if (ctx.mounted) {
+          // No bonded devices — scan for nearby printers
+          doScan(setS, ctx);
+        }
+      } catch (e) {
+        if (!ctx.mounted) return;
+        // Failed to load bonded — try scan
+        doScan(setS, ctx);
+      }
+    }
+
+    Future<void> doConnect(StateSetter setS, Map<String, dynamic> device, BuildContext ctx) async {
+      setS(() { isConnecting = true; connectingId = device['id'] as String; errorMsg = null; });
+      bool ok = false;
+      try {
+        if (device['type'] == 'ble' && device['device'] is BluetoothDevice) {
+          ok = await printerService.connectBle(device['device'] as BluetoothDevice);
+        } else if (device['type'] == 'classic') {
+          ok = await printerService.connectClassic(device['id'] as String, device['name'] as String);
+        }
+      } catch (_) { ok = false; }
+
+      if (ok && ctx.mounted) {
+        Navigator.of(ctx).pop();
+        parentSetState(() {});
+      } else if (ctx.mounted) {
+        setS(() { isConnecting = false; connectingId = null; errorMsg = 'Gagal menghubungkan ke printer'; });
+      }
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setS) {
+          if (!loaded) {
+            loaded = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) => loadBonded(setS, dialogCtx));
+          }
+
+          return PopScope(
+            canPop: true,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) printerService.stopScan();
+            },
+            child: AlertDialog(
+              backgroundColor: AppColors.posCartBg,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(LucideIcons.printer, color: AppColors.reserve, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Pilih Printer', style: GoogleFonts.spaceMono(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                ],
+              ),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (errorMsg != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(errorMsg!, style: const TextStyle(color: AppColors.danger, fontSize: 11)),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (isScanning && devices.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.reserve)),
+                            SizedBox(height: 8),
+                            Text('Memuat printer...', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                          ],
+                        ),
+                      )
+                    else if (devices.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            Icon(LucideIcons.printer, size: 32, color: Colors.white30),
+                            SizedBox(height: 8),
+                            Text('Tidak ada printer ditemukan', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                            Text('Pastikan Bluetooth aktif & printer ter-pair', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                          ],
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 300),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: List.generate(devices.length, (i) {
+                              final d = devices[i];
+                              final isConnectingThis = isConnecting && connectingId == d['id'];
+                              return Column(
+                                children: [
+                                  if (i > 0) const Divider(color: AppColors.posDivider, height: 1),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Row(
+                                      children: [
+                                        const Icon(LucideIcons.printer, size: 16, color: Colors.white54),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(d['name'] ?? 'Unknown', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                                              Text(d['type'].toString().toUpperCase(), style: const TextStyle(color: Colors.white54, fontSize: 9)),
+                                            ],
+                                          ),
+                                        ),
+                                        isConnectingThis
+                                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.reserve))
+                                          : ElevatedButton(
+                                              onPressed: isConnecting ? null : () => doConnect(setS, d, dialogCtx),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AppColors.reserve,
+                                                foregroundColor: Colors.black,
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                              ),
+                                              child: const Text('Hubungkan', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                                            ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
+                          ),
+                        ),
+                      ),
+                    if (!isScanning) ...[
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        onPressed: () => doScan(setS, dialogCtx),
+                        icon: const Icon(LucideIcons.refreshCw, size: 14, color: AppColors.reserve),
+                        label: const Text('Scan Printer', style: TextStyle(fontSize: 11, color: AppColors.reserve)),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: const Text('Batal', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
           );
         },
       ),

@@ -99,8 +99,8 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
       debugPrint('Bonded devices error: $e');
     }
 
-    // Try reconnect saved device silently
-    if (template.savedDeviceId != null) {
+    // Try reconnect saved device silently (only if not already connected)
+    if (template.savedDeviceId != null && !_printerService.isConnected) {
       try {
         await _printerService.reconnectToSaved();
         if (mounted) setState(() {});
@@ -132,6 +132,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
   }
 
   Future<void> _startScan() async {
+    if (_isScanning) return;
     setState(() => _isScanning = true);
 
     try {
@@ -173,6 +174,9 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
           savedDeviceId: id,
           savedDeviceName: name,
         );
+        _savedTemplate = _template; // Sync dirty state
+        // Persist immediately so saved device is available on next page visit
+        ReceiptTemplateService.save(_template);
       }
     });
     if (mounted) {
@@ -187,7 +191,15 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
 
   Future<void> _disconnect() async {
     await _printerService.disconnect();
-    setState(() {});
+    await _printerService.clearSavedDevice();
+    setState(() {
+      _template = _template.copyWith(
+        savedDeviceId: null,
+        savedDeviceName: null,
+      );
+      _savedTemplate = _template;
+    });
+    await ReceiptTemplateService.save(_template);
   }
 
   Future<void> _testPrint() async {
@@ -440,51 +452,94 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
     );
   }
 
-  Widget _buildConnectionCard() {
-    final connected = _printerService.isConnected;
-    final savedName = _template.savedDeviceName ?? 'Belum dipilih';
-
-    return _card(
-      title: 'Koneksi Printer',
-      icon: LucideIcons.bluetooth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: connected ? AppColors.success.withValues(alpha: 0.1) : AppColors.danger.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: connected ? AppColors.success : AppColors.danger,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  connected ? 'Terhubung: $savedName' : 'Tidak terhubung',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    color: connected ? AppColors.success : AppColors.danger,
-                    fontSize: 13,
-                  ),
-                ),
-                const Spacer(),
-                if (connected)
-                  TextButton(
-                    onPressed: _disconnect,
-                    child: const Text('Putuskan', style: TextStyle(color: AppColors.danger)),
-                  ),
-              ],
-            ),
+  Future<bool?> _showDisconnectConfirmation() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+            const SizedBox(width: 10),
+            Text('Putuskan Printer?', style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 16)),
+          ],
+        ),
+        content: Text(
+          'Yakin mau memutuskan koneksi printer?\n\nPrinter harus dihubungkan kembali untuk mencetak struk.',
+          style: GoogleFonts.inter(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Batal', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w700)),
           ),
-          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Putuskan', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionCard() {
+    return StreamBuilder<bool>(
+      stream: _printerService.connectionState,
+      initialData: _printerService.isConnected,
+      builder: (context, snapshot) {
+        final connected = snapshot.data ?? false;
+        final savedName = _template.savedDeviceName ?? 'Belum dipilih';
+
+        return _card(
+          title: 'Koneksi Printer',
+          icon: LucideIcons.bluetooth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: connected ? AppColors.success.withValues(alpha: 0.1) : AppColors.danger.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: connected ? AppColors.success : AppColors.danger,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      connected ? 'Terhubung: $savedName' : 'Tidak terhubung',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        color: connected ? AppColors.success : AppColors.danger,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (connected)
+                      TextButton(
+                        onPressed: () async {
+                          final confirm = await _showDisconnectConfirmation();
+                          if (confirm == true) _disconnect();
+                        },
+                        child: const Text('Putuskan', style: TextStyle(color: AppColors.danger)),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -607,9 +662,11 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                   ),
                 ],
               ),
-            ),
-        ],
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
