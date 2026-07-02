@@ -1,16 +1,16 @@
-# Graph Report - tiknol-mobile-flutter  (2026-07-01)
+# Graph Report - tiknol-mobile-flutter  (2026-07-02)
 
 ## Corpus Check
-- 134 files · ~151,883 words
+- 143 files · ~154,382 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2065 nodes · 2567 edges · 137 communities (125 shown, 12 thin omitted)
+- 2137 nodes · 2651 edges · 141 communities (125 shown, 16 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `26490faa`
+- Built from commit: `c078355b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -148,51 +148,55 @@
 - [[_COMMUNITY_Community 134|Community 134]]
 - [[_COMMUNITY_Community 135|Community 135]]
 - [[_COMMUNITY_Community 136|Community 136]]
+- [[_COMMUNITY_Community 137|Community 137]]
+- [[_COMMUNITY_Community 138|Community 138]]
+- [[_COMMUNITY_Community 139|Community 139]]
+- [[_COMMUNITY_Community 140|Community 140]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `authProvider` - 17 edges
-2. `apiClientProvider` - 15 edges
-3. `Hero Animations Reference` - 15 edges
-4. `Physics-Based Animations Reference` - 15 edges
-5. `Curves Reference` - 14 edges
-6. `Staggered Animations Reference` - 14 edges
-7. `_PosScreenState` - 13 edges
-8. `UI/UX Pro Max - Design Intelligence` - 13 edges
-9. `Tiknol Mobile Flutter — Session Recap` - 13 edges
+1. `Hero Animations Reference` - 15 edges
+2. `Physics-Based Animations Reference` - 15 edges
+3. `Curves Reference` - 14 edges
+4. `Staggered Animations Reference` - 14 edges
+5. `_PosScreenState` - 13 edges
+6. `UI/UX Pro Max - Design Intelligence` - 13 edges
+7. `Tiknol Mobile Flutter — Session Recap` - 13 edges
+8. `Functional Testing Plan — Full Pyramid (Tablet Android)` - 12 edges
+9. `apiClientProvider` - 12 edges
 10. `Available Widgets` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `_TestAuthNotifier` --inherits--> `AuthNotifier`  [EXTRACTED]
-  test/widget/cart/cart_panel_test.dart → lib/providers/auth_provider.dart
-- `_TestAuthNotifier` --inherits--> `AuthNotifier`  [EXTRACTED]
-  test/widget/pos/pos_screen_test.dart → lib/providers/auth_provider.dart
-- `_generate_intelligent_overrides()` --calls--> `search()`  [INFERRED]
-  .agents/skills/ui-ux-pro-max/scripts/design_system.py → .agents/skills/ui-ux-pro-max/scripts/core.py
 - `MockApiClient` --implements--> `ApiClient`  [EXTRACTED]
   test/helpers/mock_services.dart → lib/core/api_client.dart
 - `_FakeApiClient` --inherits--> `ApiClient`  [EXTRACTED]
   test/security/order_service_tampering_test.dart → lib/core/api_client.dart
+- `MockDio` --implements--> `_dio`  [EXTRACTED]
+  test/helpers/mock_services.dart → lib/core/api_client.dart
+- `_MockDio` --implements--> `_dio`  [EXTRACTED]
+  test/security/order_service_tampering_test.dart → lib/core/api_client.dart
+- `_generate_intelligent_overrides()` --calls--> `search()`  [INFERRED]
+  .agents/skills/ui-ux-pro-max/scripts/design_system.py → .agents/skills/ui-ux-pro-max/scripts/core.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (137 total, 12 thin omitted)
+## Communities (141 total, 16 thin omitted)
 
 ### Community 0 - "Community 0"
-Cohesion: 0.18
-Nodes (10): ApiClient get, _api, _branchId, createProduct, deleteProduct, getProducts, ref, updateProduct (+2 more)
+Cohesion: 0.13
+Nodes (13): ApiClient get, dart:io, _api, _branchId, createProduct, deleteProduct, getProducts, ref (+5 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.07
-Nodes (29): AnimatedListState, _buildRemovedItem, createState, _customerNameController, _discount, dispose, _hasAutoPrinted, icon (+21 more)
+Cohesion: 0.06
+Nodes (31): AnimatedListState, CartItem, _buildRemovedItem, createState, _customerNameController, _discount, dispose, _hasAutoPrinted (+23 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.15
-Nodes (15): auth_provider.dart, build, category, CategoryFilterNotifier, products, productsAsync, productService, search (+7 more)
+Cohesion: 0.05
+Nodes (45): auth_provider.dart, AuthNotifier, AuthState, branchCode, branchId, branchName, build, copyWith (+37 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.08
-Nodes (25): amount, build, _buildPendingState, _buildResultState, _countdownTimer, createState, customerName, dispose (+17 more)
+Nodes (28): amount, build, _buildPendingState, _buildResultState, _cancelOrder, _countdownTimer, createState, customerName (+20 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.17
@@ -203,40 +207,40 @@ Cohesion: 0.11
 Nodes (17): int?, branchPrice, category, copyWith, CustomizationOptions, description, fromJson, hasCustomization (+9 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.11
-Nodes (18): _buildPhoneHeader, _buildPhoneLayout, _buildProductGrid, _buildTabletHeader, _buildTabletLayout, createState, dispose, initState (+10 more)
+Cohesion: 0.08
+Nodes (25): cartProductQtyProvider, ConsumerStatefulWidget, _buildPhoneHeader, _buildPhoneLayout, _buildProductGrid, _buildTabletHeader, _buildTabletLayout, createState (+17 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.21
-Nodes (15): cartProvider, cartTotalProvider, _onTap, _showCustomizationSheet, _cancelOrder, _startPolling, build, _CartPanelState (+7 more)
+Cohesion: 0.18
+Nodes (18): authProvider, cartProvider, cartTotalProvider, ConsumerWidget, build, _onTap, _showCustomizationSheet, build (+10 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.12
 Nodes (17): _allowedDuitkuHosts, build, _controller, createState, _handleUrl, initState, _isAllowedNavigation, _isLoading (+9 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.10
-Nodes (21): dart:async, DateTime?, build, clearError, copyWith, dispose, error, fetchAll (+13 more)
+Cohesion: 0.09
+Nodes (22): dart:async, DateTime?, build, clearError, copyWith, dispose, error, fetchAll (+14 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.04
 Nodes (47): _activeCategory, _applyFilter, _branchPriceController, build, _buildCustomizationSection, _buildEmptyState, _buildError, _buildForm (+39 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.06
-Nodes (38): kitchenProvider, _ActionConfig, bgColor, build, _buildEmptyColumn, _buildHeader, _buildKanbanBoard, _buildOrderList (+30 more)
+Cohesion: 0.07
+Nodes (28): _ActionConfig, bgColor, _buildEmptyColumn, _buildKanbanBoard, _buildPhoneTabs, _buildSkeleton, _buildSkeletonCard, _buildSkeletonColumnHeader (+20 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.05
 Nodes (42): Accessibility, Advanced Techniques, Animation Duration, Basic Hero Animation, Best Practices, Common Patterns, Complete Radial Hero Example, Conditional Hero Mode (+34 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.07
-Nodes (27): active, bgColor, _buildEmpty, _buildEmptyDetail, _buildOrderList, _buildPhoneLayout, _buildTabletLayout, createState (+19 more)
+Cohesion: 0.06
+Nodes (39): ConsumerState, historyProvider, active, bgColor, build, _buildEmpty, _buildEmptyDetail, _buildError (+31 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.15
-Nodes (12): ApiClient, MockApiClient, _buildCart, client, container, _FakeApiClient, main, product (+4 more)
+Cohesion: 0.09
+Nodes (23): constants.dart, Dio get, ApiClient, clearSession, client, _dio, refreshBaseUrl, secureStorageProvider (+15 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.05
@@ -288,7 +292,7 @@ Nodes (25): 1. Animation Optimization, 1. Controller Management, 1. Image Optimi
 
 ### Community 27 - "Community 27"
 Cohesion: 0.05
-Nodes (39): _buildBodyCard, _buildConnectionCard, _buildFooterCard, _buildHeaderCard, _buildPreviewCard, _buildPreviewPanel, _buildSettingsList, _buildVisibilityCard (+31 more)
+Nodes (45): build, _buildBodyCard, _buildConnectionCard, _buildFooterCard, _buildHeaderCard, _buildPreviewCard, _buildPreviewPanel, _buildSettingsList (+37 more)
 
 ### Community 28 - "Community 28"
 Cohesion: 0.13
@@ -327,20 +331,20 @@ Cohesion: 0.13
 Nodes (14): 1. Builder Pattern, 1. ListView Optimization, 1. Responsive Grid, 1. Swipeable List Item, 2. Expandable Section, 2. Pull to Refresh, 2. RepaintBoundary, 2. State Management Pattern (+6 more)
 
 ### Community 37 - "Community 37"
-Cohesion: 0.10
-Nodes (21): ../../helpers/tablet_viewport.dart, package:tiknol_reserve_mobile/models/cart_item.dart, package:tiknol_reserve_mobile/models/product.dart, package:tiknol_reserve_mobile/providers/cart_provider.dart, package:tiknol_reserve_mobile/providers/product_provider.dart, package:tiknol_reserve_mobile/screens/pos_screen.dart, package:tiknol_reserve_mobile/screens/widgets/cart_panel.dart, package:tiknol_reserve_mobile/services/product_service.dart (+13 more)
+Cohesion: 0.09
+Nodes (23): AuthNotifier, CartNotifier, package:tiknol_reserve_mobile/models/cart_item.dart, package:tiknol_reserve_mobile/models/product.dart, package:tiknol_reserve_mobile/providers/auth_provider.dart, package:tiknol_reserve_mobile/providers/cart_provider.dart, package:tiknol_reserve_mobile/providers/product_provider.dart, package:tiknol_reserve_mobile/screens/pos_screen.dart (+15 more)
 
 ### Community 38 - "Community 38"
 Cohesion: 0.07
 Nodes (27): 1. Latar Belakang, 2. Celah yang Ditemukan dan Status Perbaikan, 3. Detail Implementasi Per Celah, 4.1 Flutter Security Tests (37 tests, `test/security/`), 4.2 Backend Jest Tests (34 tests), 4.3 Ringkasan Total, 4. Hasil Testing, 5. Arsitektur Keamanan Payment (Setelah Fix) (+19 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.15
-Nodes (11): dart:io, dart:typed_data, generateAsciiPreview, generateEscPosBytes, generateTestAsciiPreview, ReceiptGenerator, package:esc_pos_utils_plus/esc_pos_utils_plus.dart, package:image/image.dart (+3 more)
+Cohesion: 0.22
+Nodes (8): dart:typed_data, generateAsciiPreview, generateEscPosBytes, generateTestAsciiPreview, ReceiptGenerator, package:esc_pos_utils_plus/esc_pos_utils_plus.dart, package:image/image.dart, package:intl/intl.dart
 
 ### Community 40 - "Community 40"
-Cohesion: 0.17
-Nodes (16): ansi_ljust(), format_ascii_box(), format_markdown(), format_master_md(), generate_design_system(), hex_to_ansi(), persist_design_system(), Convert hex color to ANSI True Color swatch (██) with fallback. (+8 more)
+Cohesion: 0.19
+Nodes (14): _detect_page_type(), format_markdown(), format_master_md(), format_page_override_md(), generate_design_system(), _generate_intelligent_overrides(), persist_design_system(), Detect page type from context and search results. (+6 more)
 
 ### Community 41 - "Community 41"
 Cohesion: 0.14
@@ -359,12 +363,12 @@ Cohesion: 0.15
 Nodes (12): 1. Access Theme in Widgets, 1. Dynamic Color Theme, 1. Multi-Theme System, 1. Responsive Theme Builder, 2. Brand Theme, 2. Theme Switcher Widget, 2. Theme Switching Animation, Custom Theme System (+4 more)
 
 ### Community 45 - "Community 45"
-Cohesion: 0.31
-Nodes (4): MainActivity, Bundle, Configuration, FlutterActivity
+Cohesion: 0.27
+Nodes (5): MainActivity, Boolean, Bundle, Configuration, FlutterActivity
 
 ### Community 46 - "Community 46"
 Cohesion: 0.05
-Nodes (37): bluetooth_classic_service.dart, BluetoothCharacteristic?, BluetoothDevice?, BluetoothDevice? get, _bleCharacteristic, _bleDevice, _classicService, clearSavedDevice (+29 more)
+Nodes (41): bluetooth_classic_service.dart, BluetoothCharacteristic?, BluetoothDevice?, BluetoothDevice? get, _bleCharacteristic, _bleConnectionSub, _bleDevice, _bleIsConnected (+33 more)
 
 ### Community 47 - "Community 47"
 Cohesion: 0.18
@@ -379,12 +383,12 @@ Cohesion: 0.18
 Nodes (11): 10. Charts & Data (LOW), 1. Accessibility (CRITICAL), 2. Touch & Interaction (CRITICAL), 3. Performance (HIGH), 4. Style Selection (HIGH), 5. Layout & Responsive (HIGH), 6. Typography & Color (MEDIUM), 7. Animation (MEDIUM) (+3 more)
 
 ### Community 50 - "Community 50"
-Cohesion: 0.22
-Nodes (8): addItem, build, cart, clear, fold, removeItem, ../models/cart_item.dart, return
+Cohesion: 0.17
+Nodes (11): addItem, build, cart, cartItemCountProvider, cartProductQtyProvider, cartProvider, cartTotalProvider, clear (+3 more)
 
 ### Community 51 - "Community 51"
-Cohesion: 0.11
-Nodes (18): ../core/api_client.dart, ../core/constants.dart, getSavedSession, hasSession, login, ref, _storage, discount (+10 more)
+Cohesion: 0.17
+Nodes (11): discount, errorMessage, ref, valid, validate, voucherCode, voucherId, voucherName (+3 more)
 
 ### Community 52 - "Community 52"
 Cohesion: 0.20
@@ -495,8 +499,8 @@ Cohesion: 0.67
 Nodes (3): Debugging Curves, Print Curve Values, Visualize Curve
 
 ### Community 86 - "Community 86"
-Cohesion: 0.18
-Nodes (19): AnimatedBuilderDemo, _AnimatedBuilderDemoState, AnimatedWidgetDemo, _AnimatedWidgetDemoState, BasicExplicitAnimation, _BasicExplicitAnimationState, MultiPropertyDemo, _MultiPropertyDemoState (+11 more)
+Cohesion: 0.33
+Nodes (5): CartPanelPage, setCustomerName, tapCash, tapQris, tester
 
 ### Community 91 - "Community 91"
 Cohesion: 0.06
@@ -507,8 +511,8 @@ Cohesion: 0.08
 Nodes (23): 10. Checklist Pre-Migration, 11. Referensi, 1. Ringkasan Eksekutif, 2. Kondisi Saat Ini vs Target, 3. Opsi Arsitektur Real-Time untuk VPS, 4. Rekomendasi: Fase Bertahap, 5. Perbandingan Opsi, 6. Flutter Code Changes (Minimal) (+15 more)
 
 ### Community 94 - "Community 94"
-Cohesion: 0.09
-Nodes (22): dart:convert, IconData, bgColor, build, _buildHeaderCard, _buildInfoCard, _buildItemsCard, _buildReprintButton (+14 more)
+Cohesion: 0.08
+Nodes (24): Color, dart:convert, IconData, bgColor, build, _buildHeaderCard, _buildInfoCard, _buildItemsCard (+16 more)
 
 ### Community 95 - "Community 95"
 Cohesion: 0.08
@@ -519,24 +523,24 @@ Cohesion: 0.14
 Nodes (13): clear, _key, load, ReceiptTemplateService, save, getBaseUrl, hasCustomUrl, _key (+5 more)
 
 ### Community 97 - "Community 97"
-Cohesion: 0.12
-Nodes (15): Color, _baseStyle, build, data, fillColor, fontFamily, fontSize, fontWeight (+7 more)
+Cohesion: 0.13
+Nodes (14): color, _baseStyle, build, data, fillColor, fontFamily, fontSize, fontWeight (+6 more)
 
 ### Community 98 - "Community 98"
 Cohesion: 0.15
-Nodes (12): ChangeNotifier, GoRouter, _GoRouterRefreshNotifier, refreshNotifier, package:go_router/go_router.dart, ../screens/history_screen.dart, ../screens/kitchen_screen.dart, ../screens/login_screen.dart (+4 more)
+Nodes (12): ChangeNotifier, GoRouter, _GoRouterRefreshNotifier, refreshNotifier, ../providers/auth_provider.dart, ../screens/history_screen.dart, ../screens/kitchen_screen.dart, ../screens/login_screen.dart (+4 more)
 
 ### Community 99 - "Community 99"
 Cohesion: 0.11
-Nodes (21): ExplicitAnimationApp, GrowTransition, LogoAnimationDemo, LogoWidget, StaggeredAnimation, StaggeredAnimationApp, ../../core/theme.dart, _FilterPill (+13 more)
+Nodes (21): ExplicitAnimationApp, GrowTransition, LogoAnimationDemo, LogoWidget, StaggeredAnimation, StaggeredAnimationApp, ../core/theme.dart, _FilterPill (+13 more)
 
 ### Community 102 - "Community 102"
 Cohesion: 0.29
 Nodes (6): Combining skills (recommended order), graphify, Missing skills (not yet available in ecosystem), skill routing, Stack clarification, When to use which skill
 
 ### Community 103 - "Community 103"
-Cohesion: 0.25
-Nodes (9): ConsumerState, ConsumerStatefulWidget, cartProductQtyProvider, HistoryScreen, _HistoryScreenState, PosScreen, _ProductCard, _ProductCardState (+1 more)
+Cohesion: 0.18
+Nodes (19): AnimatedBuilderDemo, _AnimatedBuilderDemoState, AnimatedWidgetDemo, _AnimatedWidgetDemoState, BasicExplicitAnimation, _BasicExplicitAnimationState, MultiPropertyDemo, _MultiPropertyDemoState (+11 more)
 
 ### Community 104 - "Community 104"
 Cohesion: 0.05
@@ -544,7 +548,7 @@ Nodes (39): C1: Cleartext HTTP Communication, C2: Weak PIN Storage & Validation,
 
 ### Community 105 - "Community 105"
 Cohesion: 0.06
-Nodes (32): File?, build, _buildBasicInfoSection, _buildCustomizationSection, _buildImagePlaceholder, _buildImageSection, _categories, _category (+24 more)
+Nodes (34): File?, build, _buildBasicInfoSection, _buildCustomizationSection, _buildImagePlaceholder, _buildImageSection, _categories, _category (+26 more)
 
 ### Community 106 - "Community 106"
 Cohesion: 0.17
@@ -555,24 +559,24 @@ Cohesion: 0.17
 Nodes (12): 3.1 Performance Tests, 3.2 Scalability Tests, 3.3 Security Tests - Phase 3, 🎯 Phase 3: Performance & Scalability (Week 5-6), Test 1: App Startup Performance, Test 1: Concurrent Users, Test 2: Data Volume, Test 2: UI Rendering Performance (+4 more)
 
 ### Community 108 - "Community 108"
-Cohesion: 0.12
-Nodes (20): AuthNotifier, AuthState, branchId, branchName, build, copyWith, error, isLoading (+12 more)
+Cohesion: 0.18
+Nodes (11): ../../helpers/mock_services.dart, ../../helpers/tablet_viewport.dart, _MockAuthService, package:go_router/go_router.dart, package:mocktail/mocktail.dart, package:qr_flutter/qr_flutter.dart, package:tiknol_reserve_mobile/screens/login_screen.dart, package:tiknol_reserve_mobile/screens/qris_payment_screen.dart (+3 more)
 
 ### Community 109 - "Community 109"
 Cohesion: 0.11
 Nodes (17): build, build, CircularDetailScreen, createState, DetailScreen, GalleryScreen, HeroAnimationApp, index (+9 more)
 
 ### Community 110 - "Community 110"
-Cohesion: 0.20
-Nodes (10): ProductFormScreen, _ProductFormScreenState, _save, _uploadImage, _deleteProduct, _loadProducts, ProductManagementScreen, _ProductManagementScreenState (+2 more)
+Cohesion: 0.25
+Nodes (8): _save, _uploadImage, _deleteProduct, _loadProducts, ProductManagementScreen, _ProductManagementScreenState, _save, productServiceProvider
 
 ### Community 111 - "Community 111"
 Cohesion: 0.20
 Nodes (10): 2.1 API Integration Tests, 2.2 WebView Integration Tests, 2.3 Security Tests - Phase 2, 🎯 Phase 2: Integration Testing (Week 3-4), Test 4: Rate Limiting, Test 5: Session Management, Test 6: Payment Security, Test Suite 1: Authentication Flow (+2 more)
 
 ### Community 112 - "Community 112"
-Cohesion: 0.22
-Nodes (9): authProvider, _fetchPage, build, _handleLogin, _buildNavRail, _showLogoutConfirmation, ProductService, Route /login (+1 more)
+Cohesion: 0.20
+Nodes (11): apiClientProvider, ../core/api_client.dart, ../core/constants.dart, AuthService, getSavedSession, hasSession, login, logout (+3 more)
 
 ### Community 113 - "Community 113"
 Cohesion: 0.22
@@ -596,91 +600,91 @@ Nodes (18): AnimationController, EdgeInsetsGeometry, borderRadius, build, childr
 
 ### Community 118 - "Community 118"
 Cohesion: 0.10
-Nodes (19): baseUrl, branchIdKey, branchNameKey, connectTimeout, Constants, _devDefaultBaseUrl, env, isDevelopment (+11 more)
+Nodes (20): baseUrl, branchCodeKey, branchIdKey, branchNameKey, connectTimeout, Constants, _devDefaultBaseUrl, env (+12 more)
 
 ### Community 119 - "Community 119"
 Cohesion: 0.10
 Nodes (20): 1. Executive Summary, 2.1 Client-Side Flow (actual code), 2.2 Backend Endpoints (out of repo — tested as black-box), 2.3 Duitku API Reference, 2. Payment Architecture, 3. Vulnerability Register, 4.1 Static Analysis (Code Review), 4.2 Dynamic Analysis (Sandbox Duitku) (+12 more)
 
 ### Community 121 - "Community 121"
-Cohesion: 0.20
-Nodes (10): build, child, createState, _handleNavigation, _navItem, ShellScreen, _ShellScreenState, package:lucide_icons/lucide_icons.dart (+2 more)
+Cohesion: 0.14
+Nodes (16): authProvider, _fetchPage, build, _buildNavRail, child, createState, _handleNavigation, _navItem (+8 more)
 
 ### Community 122 - "Community 122"
-Cohesion: 0.33
-Nodes (6): _detect_page_type(), format_page_override_md(), _generate_intelligent_overrides(), Detect page type from context and search results., Format a page-specific override file with intelligent AI-generated content., Generate intelligent overrides based on page type using layered search.
+Cohesion: 0.25
+Nodes (8): ansi_ljust(), format_ascii_box(), hex_to_ansi(), Convert hex color to ANSI True Color swatch (██) with fallback., Like str.ljust but accounts for zero-width ANSI escape sequences., Create a Unicode section separator: ├─── NAME ───...┤, Format design system as Unicode box with ANSI color swatches., section_header()
 
 ### Community 123 - "Community 123"
-Cohesion: 0.17
-Nodes (12): core/router.dart, routerProvider, build, child, _ForceLandscape, getBaseUrl, main, setPreferredOrientations (+4 more)
+Cohesion: 0.18
+Nodes (11): core/router.dart, routerProvider, build, child, _ForceLandscape, getBaseUrl, main, setPreferredOrientations (+3 more)
 
 ### Community 124 - "Community 124"
 Cohesion: 0.13
-Nodes (17): MockApiClient, _MockAuthService, MockDio, package:tiknol_reserve_mobile/providers/auth_provider.dart, package:tiknol_reserve_mobile/providers/kitchen_provider.dart, package:tiknol_reserve_mobile/screens/login_screen.dart, package:tiknol_reserve_mobile/services/auth_service.dart, ProviderContainer (+9 more)
+Nodes (16): Fake, MockApiClient, MockDio, package:dio/dio.dart, package:tiknol_reserve_mobile/core/api_client.dart, package:tiknol_reserve_mobile/providers/kitchen_provider.dart, package:tiknol_reserve_mobile/services/auth_service.dart, ProviderContainer (+8 more)
 
 ### Community 125 - "Community 125"
-Cohesion: 0.25
-Nodes (6): package:flutter_riverpod/flutter_riverpod.dart, package:tiknol_reserve_mobile/main.dart, package:tiknol_reserve_mobile/providers/printer_settings_provider.dart, package:tiknol_reserve_mobile/services/printer_service.dart, main, main
+Cohesion: 0.24
+Nodes (13): ../helpers/tablet_config.dart, main, main, main, main, text, package:flutter/material.dart, package:integration_test/integration_test.dart (+5 more)
 
 ### Community 126 - "Community 126"
-Cohesion: 0.14
-Nodes (12): dart:ui, Duration, _MockOrderService, package:flutter_test/flutter_test.dart, package:tiknol_reserve_mobile/models/payment_status.dart, setTabletViewport, delay, main (+4 more)
+Cohesion: 0.18
+Nodes (9): Duration, _MockOrderService, package:tiknol_reserve_mobile/models/payment_status.dart, delay, main, service, shouldCompleteSale, verifyPaymentWithServer (+1 more)
 
 ### Community 127 - "Community 127"
 Cohesion: 0.27
-Nodes (11): cartItemCountProvider, categoriesProvider, categoryFilterProvider, filteredProductsProvider, productsProvider, searchQueryProvider, sortByProvider, build (+3 more)
+Nodes (11): cartItemCountProvider, categoriesProvider, categoryFilterProvider, filteredProductsProvider, build, _buildFilters, _PosScreenState, _sortChip (+3 more)
 
 ### Community 128 - "Community 128"
-Cohesion: 0.25
-Nodes (11): _dio, AuthService, Mock, OrderService, MockDio, MockOrderService, _MockDio, _MockOrderService (+3 more)
+Cohesion: 0.36
+Nodes (8): AuthService, Mock, OrderService, MockOrderService, _MockOrderService, _MockAuthService, _MockAuthService, _MockAuthService
 
 ### Community 129 - "Community 129"
-Cohesion: 0.16
-Nodes (13): apiClientProvider, updateStatus, _saveServerUrl, logout, cancelOrder, checkPaymentStatus, createCashOrder, createOnlinePayment (+5 more)
+Cohesion: 0.18
+Nodes (12): apiClientProvider, updateStatus, _saveServerUrl, cancelOrder, checkPaymentStatus, createCashOrder, createOnlinePayment, OrderService (+4 more)
 
 ### Community 130 - "Community 130"
-Cohesion: 0.12
-Nodes (15): ../../helpers/mock_services.dart, CartNotifier, List, package:flutter/material.dart, overrides, pumpAndSettle, pumpApp, pumpWidget (+7 more)
+Cohesion: 0.13
+Nodes (13): dart:ui, package:flutter_riverpod/flutter_riverpod.dart, package:flutter_test/flutter_test.dart, package:tiknol_reserve_mobile/providers/printer_settings_provider.dart, package:tiknol_reserve_mobile/services/printer_service.dart, overrides, pumpAndSettle, pumpApp (+5 more)
 
 ### Community 131 - "Community 131"
-Cohesion: 0.20
-Nodes (9): constants.dart, Dio get, clearSession, client, refreshBaseUrl, secureStorageProvider, _storage, package:flutter/foundation.dart (+1 more)
-
-### Community 132 - "Community 132"
-Cohesion: 0.67
-Nodes (3): ConsumerWidget, _CartItemTile, OrderDetailPanel
+Cohesion: 0.50
+Nodes (3): setPreferredOrientations, setTabletOrientation, package:flutter/services.dart
 
 ### Community 133 - "Community 133"
-Cohesion: 0.22
-Nodes (8): Fake, package:mocktail/mocktail.dart, package:qr_flutter/qr_flutter.dart, package:tiknol_reserve_mobile/core/api_client.dart, package:tiknol_reserve_mobile/screens/qris_payment_screen.dart, package:tiknol_reserve_mobile/services/order_service.dart, FakeCartItem, main
+Cohesion: 0.20
+Nodes (9): CartNotifier, List, mock_services.dart, package:tiknol_reserve_mobile/services/order_service.dart, child, createTestScope, mockOrderService, overrides (+1 more)
 
 ### Community 134 - "Community 134"
 Cohesion: 0.22
-Nodes (9): historyProvider, build, _buildError, _buildFilters, _buildHeader, initState, _onScroll, _showDateRangePicker (+1 more)
+Nodes (9): kitchenProvider, build, _buildHeader, _buildOrderList, dispose, _handleAction, initState, KitchenScreen (+1 more)
 
 ### Community 135 - "Community 135"
-Cohesion: 0.25
-Nodes (7): build, PrinterDirtyNotifier, printerDirtyProvider, setValue, build, PrinterSettingsScreen, _PrinterSettingsScreenState
+Cohesion: 0.33
+Nodes (5): enterCredentials, login, LoginPage, tapLogin, tester
+
+### Community 140 - "Community 140"
+Cohesion: 0.33
+Nodes (5): PosPage, selectVariant, tapProduct, tester, WidgetTester
 
 ## Knowledge Gaps
-- **1281 isolated node(s):** `_controller`, `_animation`, `child`, `_opacityTween`, `_sizeTween` (+1276 more)
+- **1324 isolated node(s):** `Constants`, `env`, `isProduction`, `isDevelopment`, `_prodDefaultBaseUrl` (+1319 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **16 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `ReceiptTemplate` connect `Community 18` to `Community 27`?**
-  _High betweenness centrality (0.013) - this node is a cross-community bridge._
-- **What connects `_controller`, `_animation`, `child` to the rest of the system?**
-  _1313 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Constants`, `env`, `isProduction` to the rest of the system?**
+  _1356 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Community 0` be split into smaller, more focused modules?**
+  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.06666666666666667 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0625 - nodes in this community are weakly interconnected._
+- **Should `Community 2` be split into smaller, more focused modules?**
+  _Cohesion score 0.04875886524822695 - nodes in this community are weakly interconnected._
 - **Should `Community 3` be split into smaller, more focused modules?**
-  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07635467980295567 - nodes in this community are weakly interconnected._
 - **Should `Community 5` be split into smaller, more focused modules?**
   _Cohesion score 0.1111111111111111 - nodes in this community are weakly interconnected._
 - **Should `Community 6` be split into smaller, more focused modules?**
-  _Cohesion score 0.10526315789473684 - nodes in this community are weakly interconnected._
-- **Should `Community 8` be split into smaller, more focused modules?**
-  _Cohesion score 0.11764705882352941 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08307692307692308 - nodes in this community are weakly interconnected._
