@@ -148,7 +148,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   // ═══════════════════════════════════════════════
   Widget _buildFilters(HistoryState history) {
     final now = DateTime.now();
-    final chips = [
+    final dateChips = [
       _DateChip(label: 'All', from: null, to: null),
       _DateChip(
         label: 'Today',
@@ -172,7 +172,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       ),
     ];
 
-    bool isSelected(_DateChip chip) {
+    bool isDateSelected(_DateChip chip) {
       if (chip.from == null) return history.from == null && history.to == null;
       if (history.from == null || history.to == null) return false;
       final a = DateFormat('yyyy-MM-dd').format(chip.from!);
@@ -182,39 +182,74 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       return a == c && b == d;
     }
 
+    final statusOptions = [
+      _StatusOption(label: 'All', value: 'ALL'),
+      _StatusOption(label: 'Paid', value: 'PAID'),
+      _StatusOption(label: 'Pending', value: 'PENDING'),
+      _StatusOption(label: 'Cancelled', value: 'CANCELLED'),
+      _StatusOption(label: 'Failed', value: 'FAILED'),
+    ];
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: SizedBox(
-        height: 32,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
-            ...chips.map((chip) {
-              final active = isSelected(chip);
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: _FilterPill(
-                  label: chip.label,
-                  active: active,
-                  onTap: () {
-                    if (chip.from == null) {
-                      ref.read(historyProvider.notifier).clearDateRange();
-                    } else {
-                      ref.read(historyProvider.notifier).setDateRange(chip.from!, chip.to!);
-                    }
-                  },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                ...dateChips.map((chip) {
+                  final active = isDateSelected(chip);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: _FilterPill(
+                      label: chip.label,
+                      active: active,
+                      onTap: () {
+                        if (chip.from == null) {
+                          ref.read(historyProvider.notifier).clearDateRange();
+                        } else {
+                          ref.read(historyProvider.notifier).setDateRange(chip.from!, chip.to!);
+                        }
+                      },
+                    ),
+                  );
+                }),
+                _FilterPill(
+                  label: 'Custom',
+                  active: false,
+                  icon: LucideIcons.calendar,
+                  onTap: _showDateRangePicker,
                 ),
-              );
-            }),
-            _FilterPill(
-              label: 'Custom',
-              active: false,
-              icon: LucideIcons.calendar,
-              onTap: _showDateRangePicker,
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 32,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: statusOptions.map((option) {
+                final active =
+                    (history.status == option.value) ||
+                    (history.status == null && option.value == 'ALL');
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: _FilterPill(
+                    label: option.label,
+                    active: active,
+                    onTap: () => ref
+                        .read(historyProvider.notifier)
+                        .setStatus(option.value),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -732,6 +767,12 @@ class _DateChip {
   final DateTime? from;
   final DateTime? to;
   _DateChip({required this.label, this.from, this.to});
+}
+
+class _StatusOption {
+  final String label;
+  final String value;
+  _StatusOption({required this.label, required this.value});
 }
 
 class _StatusInfo {

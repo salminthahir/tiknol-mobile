@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -15,6 +17,7 @@ import '../../services/printer_service.dart';
 import '../../services/receipt_template_service.dart';
 import '../../models/cart_item.dart';
 import '../../models/payment_status.dart';
+import '../../services/pending_payment_service.dart';
 import '../payment_webview.dart';
 import '../qris_payment_screen.dart';
 
@@ -28,21 +31,49 @@ class CartPanel extends ConsumerStatefulWidget {
 class _CartPanelState extends ConsumerState<CartPanel> {
   final _customerNameController = TextEditingController();
   final _voucherController = TextEditingController();
-  final _listKey = GlobalKey<AnimatedListState>();
-  List<String> _previousCartKeys = [];
-  int _listLength = 0;
+  final Set<String> _removingItemKeys = {};
+  final Set<String> _enteredItemKeys = {};
+  final List<Timer> _pendingRemoveTimers = [];
   String _orderType = 'DINE_IN';
   bool _isProcessing = false;
-  bool _submitting = false; // B8: Hard guard against double-tap
-  bool _hasAutoPrinted = false; // Prevent infinite print loop
+  bool _submitting = false;
+  bool _hasAutoPrinted = false;
   bool _showVoucherInput = false;
   VoucherResult? _voucher;
   String? _voucherError;
+
+  void _onRemoveItem(CartItem item) {
+    if (item.qty > 1) {
+      ref.read(cartProvider.notifier).removeItem(item.key);
+      return;
+    }
+    setState(() => _removingItemKeys.add(item.key));
+    final timer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() {
+        _removingItemKeys.remove(item.key);
+        _enteredItemKeys.remove(item.key);
+      });
+      ref.read(cartProvider.notifier).removeItem(item.key);
+    });
+    _pendingRemoveTimers.add(timer);
+  }
 
   @override
   void initState() {
     super.initState();
     _refreshPrinterConnection();
+  }
+
+  @override
+  void dispose() {
+    for (final timer in _pendingRemoveTimers) {
+      timer.cancel();
+    }
+    _pendingRemoveTimers.clear();
+    _customerNameController.dispose();
+    _voucherController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshPrinterConnection() async {
@@ -58,13 +89,6 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       await printerService.disconnect();
     }
     if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _customerNameController.dispose();
-    _voucherController.dispose();
-    super.dispose();
   }
 
   int get _discount => _voucher?.discount ?? 0;
@@ -208,8 +232,9 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       // trusted to decide success — see PV-1/PV-2. Their return value is only a
       // hint that the user is done; the authoritative status comes from the
       // server verification below.
+      String? paymentResult;
       if (qrString.isNotEmpty) {
-        await Navigator.push<void>(
+        paymentResult = await Navigator.push<String?>(
           context,
           MaterialPageRoute(
             fullscreenDialog: true,
@@ -240,11 +265,40 @@ class _CartPanelState extends ConsumerState<CartPanel> {
 
       if (!mounted) return;
 
+      // Handle postpone (pending) explicitly: keep order alive, save QR locally,
+      // don't clear cart, and skip server verification.
+      if (paymentResult == 'pending') {
+        await PendingPaymentService.savePendingPayment(
+          PendingPayment(
+            orderId: orderId,
+            qrString: qrString,
+            amount: amount,
+            expiryMinutes: expiryPeriod,
+            customerName: _customerNameController.text.isEmpty
+                ? 'Customer POS'
+                : _customerNameController.text,
+            createdAt: DateTime.now(),
+          ),
+        );
+        setState(() => _isProcessing = false);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pembayaran ditunda. Order tetap aktif.'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+        return;
+      }
+
       // PV-1/PV-2: verify the real payment status with the backend before
       // treating the transaction as paid. Only an explicit PAID clears the cart
       // and prints the receipt.
       final verified = await _verifyPaymentWithServer(orderId);
       if (!mounted) return;
+
+      // Clean up any local pending record once we've reached a final check.
+      await PendingPaymentService.removePendingPayment(orderId);
 
       if (verified == PaymentStatus.paid) {
         final auth = ref.read(authProvider);
@@ -275,10 +329,17 @@ class _CartPanelState extends ConsumerState<CartPanel> {
         }
         setState(() => _isProcessing = false);
         if (mounted) {
-          final msg = verified == PaymentStatus.pending ||
-                  verified == PaymentStatus.unknown
-              ? 'Pembayaran belum terkonfirmasi. Cek ulang status sebelum menutup.'
-              : 'Pembayaran dibatalkan';
+          String msg;
+          if (paymentResult == 'expired') {
+            msg = 'QR Code kedaluwarsa. Order telah dibatalkan.';
+          } else if (paymentResult == 'cancelled') {
+            msg = 'Pembayaran dibatalkan.';
+          } else if (verified == PaymentStatus.pending ||
+              verified == PaymentStatus.unknown) {
+            msg = 'Pembayaran belum terkonfirmasi. Cek ulang status sebelum menutup.';
+          } else {
+            msg = 'Pembayaran dibatalkan';
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(msg),
@@ -884,63 +945,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     final finalTotal = total - _discount;
     final formatter = NumberFormat('#,###', 'id');
 
-    // Sync AnimatedList with cart changes
-    final currentKeys = cart.map((e) => e.key).toList();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final listState = _listKey.currentState;
-      if (listState == null) return;
 
-      final newKeys = currentKeys.toSet();
-      final removedIndices = <int>[];
-
-      // Find indices to remove (end to start)
-      for (int i = _previousCartKeys.length - 1; i >= 0; i--) {
-        if (!newKeys.contains(_previousCartKeys[i])) {
-          removedIndices.add(i);
-        }
-      }
-
-      // Remove items — each removeItem decrements AnimatedList count by 1
-      for (final idx in removedIndices) {
-        final removeAt = idx.clamp(0, _listLength - 1);
-        if (removeAt < _listLength) {
-          final key = _previousCartKeys[idx];
-          listState.removeItem(
-            removeAt,
-            (context, animation) => FadeTransition(
-              opacity: animation,
-              child: SizeTransition(
-                sizeFactor: animation,
-                child: _buildRemovedItem(key),
-              ),
-            ),
-            duration: const Duration(milliseconds: 200),
-          );
-          _listLength--;
-        }
-      }
-
-      // Insert new items
-      for (int i = 0; i < currentKeys.length; i++) {
-        if (!_previousCartKeys.contains(currentKeys[i])) {
-          listState.insertItem(i, duration: const Duration(milliseconds: 250));
-          _listLength++;
-        }
-      }
-
-      _previousCartKeys = List.from(currentKeys);
-    });
-
-    // Reset when cart is empty
-    if (cart.isEmpty && _previousCartKeys.isNotEmpty) {
-      _previousCartKeys = [];
-      _listLength = 0;
-    }
-    // Initialize list length when AnimatedList first appears
-    if (cart.isNotEmpty && _previousCartKeys.isEmpty) {
-      _listLength = cart.length;
-    }
 
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.85,
@@ -1016,6 +1021,8 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                                 _voucher = null;
                                 _voucherError = null;
                                 _showVoucherInput = false;
+                                _enteredItemKeys.clear();
+                                _removingItemKeys.clear();
                               });
                             },
                             child: Container(
@@ -1206,27 +1213,66 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                         ],
                       ),
                     )
-                  : AnimatedList(
-                      key: _listKey,
-                      initialItemCount: cart.length,
+                  : ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemBuilder: (context, index, animation) {
-                        if (index >= cart.length) return const SizedBox.shrink();
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.3),
-                              end: Offset.zero,
-                            ).animate(CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutCubic,
-                            )),
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _CartItemTile(item: cart[index]),
-                            ),
-                          ),
+                      itemCount: cart.length,
+                      itemBuilder: (context, index) {
+                        final item = cart[index];
+                        final isRemoving = _removingItemKeys.contains(item.key);
+                        final isNew = !_enteredItemKeys.contains(item.key);
+
+                        if (isNew) {
+                          _enteredItemKeys.add(item.key);
+                        }
+
+                        Widget tile = _CartItemTile(
+                          item: item,
+                          onRemoveRequest: _onRemoveItem,
+                        );
+
+                        if (isNew) {
+                          tile = TweenAnimationBuilder<double>(
+                            key: ValueKey('enter_${item.key}'),
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, value, child) {
+                              return Opacity(
+                                opacity: value,
+                                child: Transform.translate(
+                                  offset: Offset(0, 20 * (1 - value)),
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: tile,
+                          );
+                        }
+
+                        if (isRemoving) {
+                          tile = TweenAnimationBuilder<double>(
+                            key: ValueKey('exit_${item.key}'),
+                            tween: Tween(begin: 1.0, end: 0.0),
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeInCubic,
+                            builder: (context, value, child) {
+                              return Opacity(
+                                opacity: value,
+                                child: ClipRect(
+                                  child: Align(
+                                    heightFactor: value,
+                                    child: child,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: tile,
+                          );
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: tile,
                         );
                       },
                     ),
@@ -1426,28 +1472,6 @@ class _CartPanelState extends ConsumerState<CartPanel> {
 );
   }
 
-  Widget _buildRemovedItem(String key) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.posCardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.posDivider),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('Item dihapus',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Colors.white54)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _orderTypeChip(String label, String value) {
     final isActive = _orderType == value;
     return GestureDetector(
@@ -1478,7 +1502,9 @@ class _CartPanelState extends ConsumerState<CartPanel> {
 
 class _CartItemTile extends ConsumerWidget {
   final CartItem item;
-  const _CartItemTile({required this.item});
+  final void Function(CartItem item)? onRemoveRequest;
+
+  const _CartItemTile({required this.item, this.onRemoveRequest});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1526,8 +1552,13 @@ class _CartItemTile extends ConsumerWidget {
             children: [
               _QtyButton(
                 icon: Icons.remove,
-                onTap: () =>
-                    ref.read(cartProvider.notifier).removeItem(item.key),
+                onTap: () {
+                  if (item.qty <= 1 && onRemoveRequest != null) {
+                    onRemoveRequest!(item);
+                  } else {
+                    ref.read(cartProvider.notifier).removeItem(item.key);
+                  }
+                },
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),

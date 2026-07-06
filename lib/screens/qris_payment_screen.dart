@@ -94,7 +94,7 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
           setState(() {});
           // Auto-navigate back after short delay
           await Future.delayed(const Duration(milliseconds: 500));
-          if (mounted) Navigator.pop(context, true);
+          if (mounted) Navigator.pop(context, 'paid');
         } else if (status == PaymentStatus.cancelled ||
             status == PaymentStatus.failed ||
             status == PaymentStatus.expired) {
@@ -136,6 +136,66 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
     }
   }
 
+  Future<void> _onPendingExit() async {
+    _stopTimers();
+    Navigator.pop(context, 'pending');
+  }
+
+  Future<void> _onCancelExit() async {
+    _stopTimers();
+    await _cancelOrder();
+    if (!mounted) return;
+    Navigator.pop(context, 'cancelled');
+  }
+
+  Future<bool> _showExitDialog() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Tutup Pembayaran QRIS?',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 16),
+        ),
+        content: Text(
+          'Pilih tindakan untuk order ini. Order yang ditunda tetap bisa dibayar nanti.',
+          style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'pending'),
+            child: Text(
+              'Tunda',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancelled'),
+            child: Text(
+              'Batal',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w700,
+                color: AppColors.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == 'pending') {
+      await _onPendingExit();
+      return false;
+    } else if (choice == 'cancelled') {
+      await _onCancelExit();
+      return false;
+    }
+    return true; // User dismissed dialog — stay on screen
+  }
+
   String _formatTime(int seconds) {
     final m = (seconds ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
@@ -153,10 +213,8 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            _stopTimers();
-            _cancelOrder();
-            Navigator.pop(context, false);
+          onPressed: () async {
+            await _showExitDialog();
           },
         ),
         title: Text(
@@ -171,10 +229,8 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.close, color: Colors.black),
-            onPressed: () {
-              _stopTimers();
-              _cancelOrder();
-              Navigator.pop(context, false);
+            onPressed: () async {
+              await _showExitDialog();
             },
           ),
         ],
@@ -379,6 +435,55 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
               ),
             ],
           ),
+
+          const SizedBox(height: 32),
+
+          // Action buttons: Tunda / Batal
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _onPendingExit(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(
+                    'Tunda',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _onCancelExit(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(color: AppColors.danger.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text(
+                    'Batal',
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -453,7 +558,13 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
               height: 48,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context, !isExpired && !isFailed);
+                  if (isExpired) {
+                    Navigator.pop(context, 'expired');
+                  } else if (isFailed) {
+                    Navigator.pop(context, 'cancelled');
+                  } else {
+                    Navigator.pop(context, 'paid');
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isExpired || isFailed ? Colors.grey.shade200 : AppColors.primary,

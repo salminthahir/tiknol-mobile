@@ -7,7 +7,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme.dart';
 import '../../models/cart_item.dart';
 import '../../models/product.dart';
+import '../../providers/history_provider.dart';
+import '../../services/pending_payment_service.dart';
 import '../../services/printer_service.dart';
+import '../qris_payment_screen.dart';
 import '../../services/receipt_service.dart';
 import '../../services/receipt_template_service.dart';
 
@@ -59,7 +62,23 @@ class OrderDetailPanel extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // ═══ ACTION BUTTON ═══
-          _buildReprintButton(context),
+          if (status == 'PENDING')
+            FutureBuilder<PendingPayment?>(
+              future: PendingPaymentService.getPendingPayment(id),
+              builder: (context, snapshot) {
+                final pending = snapshot.data;
+                if (pending == null) return _buildReprintButton(context);
+                return Column(
+                  children: [
+                    _buildContinuePaymentButton(context, ref, pending),
+                    const SizedBox(height: 12),
+                    _buildReprintButton(context),
+                  ],
+                );
+              },
+            )
+          else
+            _buildReprintButton(context),
         ],
       ),
     );
@@ -484,6 +503,61 @@ class OrderDetailPanel extends ConsumerWidget {
         icon: const Icon(LucideIcons.printer, size: 16, color: Colors.white),
         label: Text(
           'REPRINT RECEIPT',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+            letterSpacing: 0.5,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContinuePaymentButton(BuildContext context, WidgetRef ref, PendingPayment pending) {
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: () async {
+          final result = await Navigator.push<String?>(
+            context,
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => QrisPaymentScreen(
+                orderId: pending.orderId,
+                qrString: pending.qrString,
+                amount: pending.amount,
+                expiryMinutes: pending.expiryMinutes,
+                customerName: pending.customerName,
+              ),
+            ),
+          );
+
+          // Refresh history so paid/cancelled status is reflected.
+          if (context.mounted) {
+            ref.read(historyProvider.notifier).fetch();
+          }
+
+          if (result == 'paid' && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pembayaran berhasil dikonfirmasi.'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        },
+        icon: const Icon(LucideIcons.qrCode, size: 16, color: Colors.white),
+        label: Text(
+          'LANJUTKAN PEMBAYARAN',
           style: GoogleFonts.inter(
             fontWeight: FontWeight.w800,
             fontSize: 13,

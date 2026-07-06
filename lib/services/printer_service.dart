@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -196,7 +196,7 @@ class PrinterService {
         }
       }
     } catch (e) {
-      print('_scanBle error: $e');
+      debugPrint('_scanBle error: $e');
     }
     return found;
   }
@@ -271,7 +271,7 @@ class PrinterService {
         return false;
       }
     } catch (e) {
-      print('connectBle error: $e');
+      debugPrint('connectBle error: $e');
       return false;
     }
   }
@@ -301,7 +301,7 @@ class PrinterService {
       try {
         await _bleDevice!.disconnect().timeout(const Duration(seconds: 5));
       } catch (e) {
-        print('BLE disconnect error: $e');
+        debugPrint('BLE disconnect error: $e');
       }
       _bleDevice = null;
       _bleCharacteristic = null;
@@ -402,7 +402,7 @@ class PrinterService {
         }
       }
     } catch (e) {
-      print('reconnectToSaved scan error: $e');
+      debugPrint('reconnectToSaved scan error: $e');
     }
     return false;
   }
