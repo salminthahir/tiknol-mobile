@@ -24,7 +24,7 @@ class PendingPayment {
         'amount': amount,
         'expiryMinutes': expiryMinutes,
         'customerName': customerName,
-        'createdAt': createdAt.toIso8601String(),
+        'createdAt': createdAt.toUtc().toIso8601String(),
       };
 
   factory PendingPayment.fromJson(Map<String, dynamic> json) => PendingPayment(

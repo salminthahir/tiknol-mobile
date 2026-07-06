@@ -37,6 +37,7 @@ class OrderService {
         'subtotal': subtotal,
         'discountAmount': discountAmount,
         'voucherId': voucherId,
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
       },
     );
 
@@ -76,6 +77,7 @@ class OrderService {
         'voucherId': voucherId,
         'paymentMethod': paymentMethod ?? '',
         'branchId': branchId,
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
       },
     );
 
