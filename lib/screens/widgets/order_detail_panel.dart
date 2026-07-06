@@ -33,7 +33,7 @@ class OrderDetailPanel extends ConsumerWidget {
     final cashier = order['cashierName']?.toString();
     final orderType = order['orderType']?.toString() ?? 'DINE_IN';
     final createdRaw = order['createdAt']?.toString();
-    final createdAt = createdRaw != null ? DateTime.tryParse(createdRaw) : null;
+    final createdAt = createdRaw != null ? DateTime.tryParse(createdRaw)?.toLocal() : null;
     final items = _parseItems(order['items']);
     final voucher = order['voucher'] as Map<String, dynamic>?;
 

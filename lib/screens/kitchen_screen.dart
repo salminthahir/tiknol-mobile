@@ -508,7 +508,7 @@ class _CompactOrderCard extends StatelessWidget {
     }
 
     final createdRaw = order['createdAt']?.toString();
-    final createdAt = createdRaw != null ? DateTime.tryParse(createdRaw) : null;
+    final createdAt = createdRaw != null ? DateTime.tryParse(createdRaw)?.toLocal() : null;
     final orderId = order['id']?.toString() ?? '';
 
     final actionConfig = _getActionConfig(status);

@@ -33,7 +33,7 @@ class PendingPayment {
         amount: (json['amount'] as num?)?.toInt() ?? 0,
         expiryMinutes: (json['expiryMinutes'] as num?)?.toInt() ?? 10,
         customerName: json['customerName']?.toString() ?? '',
-        createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+        createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '')?.toLocal() ??
             DateTime.now(),
       );
 }

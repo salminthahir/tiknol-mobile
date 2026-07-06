@@ -348,7 +348,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         final payment = order['paymentType'] ?? '';
         final customer = order['customerName'] ?? 'Customer';
         final createdAtRaw = order['createdAt']?.toString();
-        final createdAt = createdAtRaw != null ? DateTime.tryParse(createdAtRaw) : null;
+        final createdAt = createdAtRaw != null ? DateTime.tryParse(createdAtRaw)?.toLocal() : null;
         final isSelected = _selectedOrderId == id;
 
         final statusInfo = _getStatusInfo(status);
