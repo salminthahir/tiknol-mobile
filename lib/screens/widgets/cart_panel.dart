@@ -10,6 +10,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../core/theme.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/shift_provider.dart';
 import '../../services/order_service.dart';
 import '../../services/voucher_service.dart';
 import '../../services/receipt_service.dart';
@@ -26,6 +27,206 @@ class CartPanel extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<CartPanel> createState() => _CartPanelState();
+}
+
+class _ConfirmDialogContent extends StatefulWidget {
+  final List<CartItem> cart;
+  final String orderType;
+  final String paymentType;
+  final int total;
+  final int finalTotal;
+  final int discount;
+  final NumberFormat formatter;
+  // Shared notifiers so actions row (outside content subtree) can react
+  final ValueNotifier<bool> cashValidNotifier;
+  final ValueNotifier<int> uangDiterimaNotifier;
+
+  const _ConfirmDialogContent({
+    required this.cart,
+    required this.orderType,
+    required this.paymentType,
+    required this.total,
+    required this.finalTotal,
+    required this.discount,
+    required this.formatter,
+    required this.cashValidNotifier,
+    required this.uangDiterimaNotifier,
+  });
+
+  @override
+  State<_ConfirmDialogContent> createState() => _ConfirmDialogContentState();
+}
+
+class _ConfirmDialogContentState extends State<_ConfirmDialogContent> {
+  final _uangDiterimaController = TextEditingController();
+  int _uangDiterima = 0;
+  int _kembalian = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _uangDiterimaController.addListener(_onUangDiterimaChanged);
+  }
+
+  @override
+  void dispose() {
+    _uangDiterimaController.dispose();
+    super.dispose();
+  }
+
+  void _onUangDiterimaChanged() {
+    final val = int.tryParse(_uangDiterimaController.text.replaceAll(',', '')) ?? 0;
+    setState(() {
+      _uangDiterima = val;
+      _kembalian = val - widget.finalTotal;
+    });
+    widget.uangDiterimaNotifier.value = val;
+    widget.cashValidNotifier.value = val >= widget.finalTotal;
+  }
+
+  void _setQuickAmount(int amount) {
+    _uangDiterimaController.text = amount.toString();
+  }
+
+
+
+  @override
+  Widget build(BuildContext context) {
+    final isCash = widget.paymentType == 'CASH';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '${widget.orderType} • ${widget.paymentType}',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...widget.cart.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('${item.qty}x ${item.product.name}',
+                    style: const TextStyle(fontSize: 13, color: Colors.black87)),
+              ),
+              Text('Rp ${widget.formatter.format(item.subtotal)}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+            ],
+          ),
+        )),
+        const Divider(height: 20, color: Colors.grey),
+        if (widget.discount > 0)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Subtotal', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              Text('Rp ${widget.formatter.format(widget.total)}',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey, decoration: TextDecoration.lineThrough)),
+            ],
+          ),
+        if (widget.discount > 0)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Diskon', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              Text('-Rp ${widget.formatter.format(widget.discount)}',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            ],
+          ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('TOTAL', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.black)),
+            Text('Rp ${widget.formatter.format(widget.finalTotal)}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.success)),
+          ],
+        ),
+        if (isCash) ...[
+          const SizedBox(height: 16),
+          TextField(
+            controller: _uangDiterimaController,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              labelText: 'Uang Diterima',
+              labelStyle: const TextStyle(color: Colors.black54),
+              prefixText: 'Rp ',
+              prefixStyle: const TextStyle(color: Colors.black54, fontWeight: FontWeight.w600),
+              filled: true,
+              fillColor: Colors.grey[100],
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[400]!)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.grey[400]!)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.reserve, width: 2)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_uangDiterima > 0)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _kembalian >= 0 ? 'Kembalian' : 'Kurang',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _kembalian >= 0 ? AppColors.success : AppColors.danger,
+                  ),
+                ),
+                Text(
+                  'Rp ${widget.formatter.format(_kembalian.abs())}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: _kembalian >= 0 ? AppColors.success : AppColors.danger,
+                  ),
+                ),
+              ],
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _quickAmounts.map((amount) {
+              return ActionChip(
+                label: Text(
+                  amount == widget.finalTotal ? 'Uang Pas' : '${(amount ~/ 1000)}rb',
+                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                ),
+                backgroundColor: Colors.grey[200],
+                side: BorderSide(color: Colors.grey[400]!),
+                onPressed: () => _setQuickAmount(amount),
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
+  List<int> get _quickAmounts {
+    final t = widget.finalTotal;
+    final rounded = ((t + 999) ~/ 1000) * 1000;
+    return [
+      rounded,
+      rounded + 10000,
+      rounded + 50000,
+      t,
+    ];
+  }
 }
 
 class _CartPanelState extends ConsumerState<CartPanel> {
@@ -128,11 +329,24 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     }
   }
 
-  Future<void> _processCashPayment() async {
+  Future<void> _processCashPayment({required int uangDiterima}) async {
     // B8: Double-tap prevention — hard guard
     if (_submitting) return;
     final cart = ref.read(cartProvider);
     if (cart.isEmpty) return;
+
+    final shiftState = ref.read(shiftProvider);
+    if (!shiftState.hasActiveShift || shiftState.currentShift == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada shift aktif. Buka shift terlebih dahulu.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+      return;
+    }
 
     _hasAutoPrinted = false; // Reset for new transaction
     _submitting = true;
@@ -150,10 +364,13 @@ class _CartPanelState extends ConsumerState<CartPanel> {
         totalAmount: finalTotal,
         subtotal: subtotal,
         discountAmount: _discount,
+        shiftId: shiftState.currentShift!.id,
+        uangDiterima: uangDiterima,
         voucherId: _voucher?.voucherId,
       );
 
       final auth = ref.read(authProvider);
+      await ref.read(shiftProvider.notifier).refreshExpectedCash();
 
       // Clear cart
       ref.read(cartProvider.notifier).clear();
@@ -200,6 +417,19 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     final cart = ref.read(cartProvider);
     if (cart.isEmpty) return;
 
+    final shiftState = ref.read(shiftProvider);
+    if (!shiftState.hasActiveShift || shiftState.currentShift == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada shift aktif. Buka shift terlebih dahulu.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+      return;
+    }
+
     _hasAutoPrinted = false; // Reset for new transaction
     _submitting = true;
     setState(() => _isProcessing = true);
@@ -218,6 +448,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
         discountAmount: _discount,
         branchId: ref.read(authProvider).branchId ?? '',
         voucherId: _voucher?.voucherId,
+        shiftId: shiftState.currentShift!.id,
       );
 
       if (!mounted) return;
@@ -404,105 +635,67 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     final finalTotal = total - _discount;
     final formatter = NumberFormat('#,###', 'id');
 
-    final confirmed = await showDialog<bool>(
+    final uangDiterimaResult = await showDialog<int?>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.receipt_long, color: AppColors.primary),
-            const SizedBox(width: 10),
-            Text('Konfirmasi Pembayaran',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 18)),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) {
+        final isCash = paymentType == 'CASH';
+        final cashValidNotifier = ValueNotifier<bool>(false);
+        final uangDiterimaNotifier = ValueNotifier<int>(0);
+
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$_orderType • $paymentType',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...cart.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text('${item.qty}x ${item.product.name}',
-                          style: const TextStyle(fontSize: 13)),
-                    ),
-                    Text('Rp ${formatter.format(item.subtotal)}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              )),
-              const Divider(height: 20),
-              if (_discount > 0)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Subtotal', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                    Text('Rp ${formatter.format(total)}',
-                        style: const TextStyle(fontSize: 13, color: Colors.grey, decoration: TextDecoration.lineThrough)),
-                  ],
-                ),
-              if (_discount > 0)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Diskon', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                    Text('-Rp ${formatter.format(_discount)}',
-                        style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                  ],
-                ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('TOTAL', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
-                  Text('Rp ${formatter.format(finalTotal)}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.success)),
-                ],
-              ),
+              const Icon(Icons.receipt_long, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Text('Konfirmasi Pembayaran',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.black)),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          content: SingleChildScrollView(
+            child: _ConfirmDialogContent(
+              cart: cart,
+              orderType: _orderType,
+              paymentType: paymentType,
+              total: total,
+              finalTotal: finalTotal,
+              discount: _discount,
+              formatter: formatter,
+              cashValidNotifier: cashValidNotifier,
+              uangDiterimaNotifier: uangDiterimaNotifier,
             ),
-            child: const Text('Konfirmasi Bayar', style: TextStyle(fontWeight: FontWeight.w900)),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ValueListenableBuilder<bool>(
+              valueListenable: isCash ? cashValidNotifier : ValueNotifier(true),
+              builder: (context, isValid, child) {
+                return ElevatedButton(
+                  onPressed: isValid
+                      ? () => Navigator.pop(ctx, isCash ? uangDiterimaNotifier.value : 0)
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isValid ? AppColors.success : Colors.grey[300],
+                    foregroundColor: isValid ? Colors.white : Colors.grey[600],
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Konfirmasi Bayar', style: TextStyle(fontWeight: FontWeight.w900)),
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
 
-    if (confirmed == true) {
+    if (uangDiterimaResult != null) {
       if (paymentType == 'CASH') {
-        await _processCashPayment();
+        await _processCashPayment(uangDiterima: uangDiterimaResult);
       } else {
         await _processOnlinePayment();
       }

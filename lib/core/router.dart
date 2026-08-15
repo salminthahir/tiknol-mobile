@@ -8,6 +8,7 @@ import '../screens/kitchen_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/printer_settings_screen.dart';
 import '../screens/product_management_screen.dart';
+import '../screens/close_shift_screen.dart';
 import '../screens/shell_screen.dart';
 
 class _GoRouterRefreshNotifier extends ChangeNotifier {
@@ -23,7 +24,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/pos',
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
       final authState = ref.read(authProvider);
@@ -87,6 +88,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
               child: const ProductManagementScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/close-shift',
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const CloseShiftScreen(),
             ),
           ),
         ],

@@ -8,6 +8,7 @@ import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../services/server_config_service.dart';
 import '../core/api_client.dart';
+import '../core/constants.dart';
 import 'widgets/outlined_text.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -77,22 +78,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         connectTimeout: const Duration(seconds: 5),
         receiveTimeout: const Duration(seconds: 5),
       ));
-      // Try to reach the health endpoint or root
-      final response = await dio.get('/api/health').timeout(const Duration(seconds: 6));
-      if (response.statusCode == 200) {
-        setState(() => _connectionStatus = 'Terhubung ke server!');
-      } else {
-        setState(() => _connectionStatus = 'Server merespons tapi status: ${response.statusCode}');
-      }
+      await dio.get('/').timeout(const Duration(seconds: 6));
+      setState(() => _connectionStatus = 'Terhubung ke server!');
     } on DioException catch (e) {
-      if (e.type == DioExceptionType.connectionError ||
+      if (e.type == DioExceptionType.badResponse) {
+        setState(() => _connectionStatus = 'Terhubung ke server!');
+      } else if (e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout) {
         setState(() => _connectionStatus = 'Tidak dapat terhubung. Periksa IP dan jaringan.');
       } else {
-        setState(() => _connectionStatus = 'Error: ${e.message}');
+        setState(() => _connectionStatus = 'Tidak dapat terhubung. Periksa IP dan jaringan.');
       }
     } catch (e) {
-      setState(() => _connectionStatus = 'Error: $e');
+      setState(() => _connectionStatus = 'Tidak dapat terhubung. Periksa IP dan jaringan.');
     } finally {
       setState(() => _isTestingConnection = false);
     }
@@ -121,7 +119,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       resizeToAvoidBottomInset: true,
-      body: isTablet ? _buildTabletLayout(auth) : _buildPhoneLayout(auth),
+      body: Stack(
+        children: [
+          isTablet ? _buildTabletLayout(auth) : _buildPhoneLayout(auth),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: Text(
+              'v${Constants.appVersion}',
+              style: TextStyle(
+                color: AppColors.textSecondary.withValues(alpha: 0.4),
+                fontSize: 11,
+                fontFamily: 'Inter',
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

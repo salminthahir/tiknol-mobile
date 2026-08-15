@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/printer_settings_provider.dart';
 import '../providers/product_provider.dart';
+import '../providers/shift_provider.dart';
 
 class ShellScreen extends ConsumerStatefulWidget {
   final Widget child;
@@ -90,6 +91,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   }),
                   _navItem(LucideIcons.package, 'Produk', location == '/products', () async {
                     await _handleNavigation(context, '/products');
+                  }),
+                  _navItem(LucideIcons.wallet, 'Tutup\nShift', location == '/close-shift', () async {
+                    await _handleNavigation(context, '/close-shift');
                   }),
                 ],
               ),
@@ -185,6 +189,50 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   Future<void> _showLogoutConfirmation() async {
+    final shiftState = ref.read(shiftProvider);
+    if (shiftState.hasActiveShift) {
+      final goToCloseShift = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: AppColors.accent),
+              const SizedBox(width: 10),
+              Text('Shift Masih Aktif',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 16)),
+            ],
+          ),
+          content: Text(
+            'Anda harus menutup shift terlebih dahulu sebelum logout. '
+            'Ini memastikan kas tercatat dengan benar.',
+            style: GoogleFonts.inter(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: Text('Batal',
+                  style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w700)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.reserve,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Tutup Shift', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      );
+      if (goToCloseShift == true && mounted) {
+        context.go('/close-shift');
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,

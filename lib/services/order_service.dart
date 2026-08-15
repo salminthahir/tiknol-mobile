@@ -17,9 +17,13 @@ class OrderService {
     required int totalAmount,
     required int subtotal,
     required int discountAmount,
+    required String shiftId,
+    required int uangDiterima,
     String? voucherId,
+    String? clientTransactionId,
   }) async {
     final api = ref.read(apiClientProvider);
+    final txnId = clientTransactionId ?? '${DateTime.now().millisecondsSinceEpoch}';
 
     final response = await api.client.post(
       '/api/cash-order',
@@ -37,6 +41,9 @@ class OrderService {
         'subtotal': subtotal,
         'discountAmount': discountAmount,
         'voucherId': voucherId,
+        'shiftId': shiftId,
+        'uangDiterima': uangDiterima,
+        'clientTransactionId': txnId,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
       },
     );
@@ -57,6 +64,7 @@ class OrderService {
     String? paymentMethod,
     required String branchId,
     String? voucherId,
+    String? shiftId,
   }) async {
     final api = ref.read(apiClientProvider);
 
@@ -78,6 +86,7 @@ class OrderService {
         'paymentMethod': paymentMethod ?? '',
         'branchId': branchId,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
+        if (shiftId != null) 'shiftId': shiftId,
       },
     );
 

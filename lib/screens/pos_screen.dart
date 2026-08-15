@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -8,10 +9,13 @@ import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/shift_provider.dart';
 import '../models/product.dart';
 import '../services/printer_service.dart';
 import 'widgets/cart_panel.dart';
 import 'widgets/skeleton_screens.dart';
+import 'widgets/open_shift_bottom_sheet.dart';
+import 'package:go_router/go_router.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -25,6 +29,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
   final _searchController = TextEditingController();
   late AnimationController _staggerController;
   bool _staggerPlayed = false;
+  Timer? _shiftTickTimer;
 
   @override
   void initState() {
@@ -33,12 +38,27 @@ class _PosScreenState extends ConsumerState<PosScreen>
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkShift());
+    // Tick every minute to refresh shift duration display
+    _shiftTickTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _checkShift() async {
+    await ref.read(shiftProvider.notifier).checkActiveShift();
+    if (!mounted) return;
+    final shiftState = ref.read(shiftProvider);
+    if (!shiftState.hasActiveShift) {
+      await showOpenShiftSheet(context);
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _staggerController.dispose();
+    _shiftTickTimer?.cancel();
     super.dispose();
   }
 
@@ -181,28 +201,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                                color: AppColors.success, shape: BoxShape.circle)),
-                        const SizedBox(width: 6),
-                        Text('OPEN',
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.success)),
-                      ],
-                    ),
-                  ),
+                  _ShiftStatusBadge(onTap: () => context.go('/close-shift')),
                   const SizedBox(width: 8),
                   StreamBuilder<bool>(
                     stream: printerService.connectionState,
@@ -283,28 +282,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                            width: 5,
-                            height: 5,
-                            decoration: const BoxDecoration(
-                                color: AppColors.success, shape: BoxShape.circle)),
-                        const SizedBox(width: 4),
-                        Text('OPEN',
-                            style: GoogleFonts.inter(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.success)),
-                      ],
-                    ),
-                  ),
+                  _ShiftStatusBadge(compact: true, onTap: () => context.go('/close-shift')),
                   const SizedBox(width: 6),
                   StreamBuilder<bool>(
                     stream: printerService.connectionState,
@@ -974,6 +952,63 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Shift status badge — shows OPEN/CLOSED state and elapsed duration.
+/// Tapping navigates to the close-shift screen (Rekap & Tutup Shift).
+class _ShiftStatusBadge extends ConsumerWidget {
+  final bool compact;
+  final VoidCallback onTap;
+
+  const _ShiftStatusBadge({this.compact = false, required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shiftState = ref.watch(shiftProvider);
+    final isOpen = shiftState.hasActiveShift;
+    final color = isOpen ? AppColors.success : AppColors.danger;
+
+    String label = isOpen ? 'OPEN' : 'NO SHIFT';
+    if (isOpen && shiftState.currentShift != null) {
+      final duration = DateTime.now().difference(shiftState.currentShift!.startTime);
+      final h = duration.inHours;
+      final m = duration.inMinutes % 60;
+      label = 'OPEN • ${h}j ${m}m';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 10,
+          vertical: compact ? 4 : 6,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(compact ? 6 : 8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: compact ? 5 : 6,
+              height: compact ? 5 : 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            SizedBox(width: compact ? 4 : 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: compact ? 9 : 11,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -35,4 +35,8 @@ class Constants {
   static const String branchIdKey = 'branch_id';
   static const String branchNameKey = 'branch_name';
   static const String branchCodeKey = 'branch_code';
+
+  // App version — override at build time with: --dart-define=APP_VERSION=1.0.0+2
+  static const String appVersion =
+      String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0+1');
 }

@@ -57,6 +57,25 @@ The following areas are critical but do not yet have installable skills meeting 
 | Security (secure storage, certificate pinning) | No official skill found | Manual implementation |
 | CI/CD (Fastlane / Codemagic) | Install count <100 | Evaluate `rodydavis/skills@using-fastlane-in-flutter-and-ci` with caution |
 
+### Accessibility Requirement (WCAG)
+
+**WAJIB** - Semua design MUST mematuhi pedoman WCAG 2.1 Level AA:
+
+- **Color Contrast**: Rasio kontras minimum **4.5:1** untuk teks normal dan **3:1** untuk teks besar (Bold 18pt+ / Regular 24pt+)
+- **Never do**: Desain dengan warna yang menyatu, gradasi serupa, atau teks yang hampir hilang di background
+- **Before shipping**: Selalu verify contrast ratio sebelum generate kode
+- **Tools**: Gunakan `ui-ux-pro-max` yang sudah include accessibility checking
+
+**Contoh Failure (JANGAN):**
+- Teks putih di background putih/terang
+- Teks hitam di background hitam/gelap
+- Warna serupa (hijau muda di background hijau)
+- Gradasi yang tidak kontrast
+
+**Contoh Good:**
+- Teks gelap (#1A1A1A) di background terang (#FFFFFF)
+- Teks putih di background biru tua (#1E3A5F)
+
 ### Stack clarification
 
 This is a **Flutter** project. When using `ui-ux-pro-max`, its examples may reference React Native or web patterns; always translate those recommendations to Flutter equivalents (e.g., `GestureDetector` instead of `Pressable`, `MaterialApp` routing instead of React Navigation).

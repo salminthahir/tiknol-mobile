@@ -3,6 +3,15 @@ allprojects {
         google()
         mavenCentral()
     }
+    // Force flutter_bluetooth_serial to use a compatible appcompat version
+    configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "androidx.appcompat" && requested.name == "appcompat") {
+                useVersion("1.2.0")
+                because("flutter_bluetooth_serial 0.4.0 is incompatible with appcompat 1.3+ on compileSdk 36")
+            }
+        }
+    }
 }
 
 val newBuildDir: Directory =
