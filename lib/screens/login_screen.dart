@@ -26,6 +26,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _showServerConfig = false;
   bool _isTestingConnection = false;
   String? _connectionStatus;
+  
+  // Force logout handler (emergency exit)
+  Future<void> _forceLogout() async {
+    await ref.read(authProvider.notifier).logout();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session cleared'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      // Router redirect will handle navigation back to /login
+    }
+  }
 
   @override
   void initState() {
@@ -708,6 +722,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
               ),
             ),
+
+            // Force Logout Button (emergency exit)
+            if (auth.isLoggedIn) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: _forceLogout,
+                  icon: const Icon(Icons.logout, size: 18),
+                  label: const Text('FORCE LOGOUT',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                        color: AppColors.danger,
+                      )),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.danger, width: 1.5),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

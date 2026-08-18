@@ -6,7 +6,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/printer_settings_provider.dart';
-import '../providers/product_provider.dart';
 import '../providers/shift_provider.dart';
 
 class ShellScreen extends ConsumerStatefulWidget {
@@ -268,8 +267,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     if (confirmed == true && mounted) {
       ref.read(authProvider.notifier).logout();
-      ref.invalidate(productsProvider);
-      context.go('/login');
+      // Router redirect hook will handle navigation to /login automatically
+      // No need for explicit context.go('/login') here
     }
   }
 
