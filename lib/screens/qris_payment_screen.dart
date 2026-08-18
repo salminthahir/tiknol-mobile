@@ -35,9 +35,19 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
   int _remainingSeconds = 0;
   String _paymentStatus = 'PENDING'; // PENDING, PAID, EXPIRED, FAILED
   bool _isChecking = false;
+  bool _manualRefreshInProgress = false;
   int _pollAttempts = 0;
   static const int _maxPollAttempts = 120; // 10 minutes at 5s intervals
-
+  
+  // ANTI-SPAM FIELDS
+  final Set<String> _recentChecks = {}; // Track recent checks per device
+  static const int checkWindowMs = 3000; // Only allow new check if > 3 seconds passed
+  static const int maxRecentChecks = 10; // Max 10 rapid checks window
+  
+  // LAST CHECK TIMESTAMPS
+  DateTime? _lastCheckedAt;
+  DateTime _cooldownEndTime = DateTime(1); // Never in cooldown initially
+  
   @override
   void initState() {
     super.initState();
@@ -67,6 +77,176 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
     });
   }
 
+  // ✅ ANTI-SPAM CHECK: Validate before allowing manual check
+  bool _canCheckPayment() {
+    final now = DateTime.now();
+    
+    // Check 1: Is still in cooldown period from last check?
+    if (now.isBefore(_cooldownEndTime)) {
+      return false;
+    }
+    
+    // Check 2: Clean up old entries (older than window)
+    _recentChecks.removeWhere((timestamp) => 
+      now.difference(DateTime.parse(timestamp)).inMilliseconds > checkWindowMs
+    );
+    
+    // Check 3: Are we at max rapid checks already?
+    return _recentChecks.length < maxRecentChecks;
+  }
+
+  void _recordRecentCheck() {
+    // Record timestamp of this check
+    _recentChecks.add(DateTime.now().toIso8601String());
+  }
+
+  void _setCooldown(int seconds) {
+    _cooldownEndTime = DateTime.now().add(Duration(seconds: seconds));
+  }
+
+  // ✅ NEW: Manual Check Handler with Anti-Spam Protection
+  Future<void> _manualCheck() async {
+    // ANTI-SPAM: Reject if spam detection triggered
+    if (!_canCheckPayment()) {
+      _showSpamWarning();
+      return;
+    }
+    
+    if (_paymentStatus != 'PENDING' || _isChecking) {
+      return;
+    }
+
+    setState(() => _manualRefreshInProgress = true);
+    _recordRecentCheck();
+    
+    final startTime = DateTime.now();
+
+    try {
+      final orderService = ref.read(orderServiceProvider);
+      final status = await orderService.checkPaymentStatus(widget.orderId);
+
+      if (!mounted) return;
+
+      final duration = DateTime.now().difference(startTime);
+      
+      // Set cooldown AFTER successful check
+      _setCooldown(1); // 1 second cooldown after each successful check
+
+      setState(() => _lastCheckedAt = DateTime.now());
+
+      if (status == PaymentStatus.paid) {
+        _handlePaymentSuccess();
+      } else {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Status: ${status.name.toUpperCase()} (${duration.inSeconds}s)'),
+            backgroundColor: Colors.blue.shade700,
+            duration: const Duration(milliseconds: 1200),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+        
+        // Show temporary loading feedback
+        _showCheckingIndicator();
+      }
+    } on PaymentCheckException catch (e) {
+      // Keep polling - fail-closed pattern
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚠️ Gagal memeriksa: ${e.message}'),
+          backgroundColor: AppColors.danger,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error: ${(e as dynamic).toString()}'),
+          backgroundColor: AppColors.danger,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _manualRefreshInProgress = false);
+      }
+    }
+  }
+
+  // ANTI-SPAM WARNING DIALOG
+  void _showSpamWarning() {
+    final remaining = _cooldownEndTime.difference(DateTime.now()).inSeconds;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Mohon Tunggu...',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Silakan tunggu $remaining s sebelum memeriksa ulang.',
+              style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Memeriksa terlalu sering dapat membebani sistem.',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Oke'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCheckingIndicator() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          children: [
+            const CircularProgressIndicator(color: AppColors.primary),
+            const SizedBox(width: 16),
+            Text(
+              'Memeriksa pembayaran...',
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+    });
+  }
+
   void _startPolling() {
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!mounted || _paymentStatus != 'PENDING' || _isChecking) return;
@@ -88,29 +268,80 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
         if (!mounted) return;
 
         if (status == PaymentStatus.paid) {
-          _paymentStatus = 'PAID';
-          _stopTimers();
-          await _playSuccessSound();
-          setState(() {});
-          // Auto-navigate back after short delay
-          await Future.delayed(const Duration(milliseconds: 500));
-          if (mounted) Navigator.pop(context, 'paid');
+          _handlePaymentSuccess();
         } else if (status == PaymentStatus.cancelled ||
             status == PaymentStatus.failed ||
             status == PaymentStatus.expired) {
-          _paymentStatus =
-              status == PaymentStatus.expired ? 'EXPIRED' : 'FAILED';
-          _stopTimers();
-          setState(() {});
+          _handleFailure(status);
         }
-      } on PaymentCheckException {
-        // PV-5: could not verify this tick — keep polling, never assume paid.
+        // On exception: continue polling (fail-closed)
       } catch (e) {
-        // Silently retry on next tick
+        // Silently retry next tick
       } finally {
-        _isChecking = false;
+        if (mounted) {
+          setState(() => _isChecking = false);
+        }
       }
     });
+  }
+
+  void _handlePaymentSuccess() {
+    _paymentStatus = 'PAID';
+    _stopTimers();
+    _playSuccessSound();
+    _showSuccessFeedback();
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) Navigator.pop(context, 'paid');
+    });
+  }
+
+  void _handleFailure(PaymentStatus status) {
+    _paymentStatus = status == PaymentStatus.expired ? 'EXPIRED' : 'FAILED';
+    _stopTimers();
+    setState(() {});
+  }
+
+  void _showSuccessFeedback() {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '✅ Pembayaran Berhasil!',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    'Total: Rp ${NumberFormat('#,###', 'id').format(widget.amount)}',
+                    style: const TextStyle(fontSize: 13, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: AppColors.success,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.click);
   }
 
   void _stopTimers() {
@@ -200,6 +431,13 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
     final m = (seconds ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+
+  String _formatTimestamp(DateTime dt) {
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final second = dt.second.toString().padLeft(2, '0');
+    return '$hour:$minute:$second';
   }
 
   @override
@@ -412,21 +650,23 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
 
           const SizedBox(height: 16),
 
-          // Status indicator
+          // Status indicator + LAST CHECKED TIMESTAMP
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.primary,
-                ),
-              ),
+              if (_isChecking || _manualRefreshInProgress)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                )
+              else
+                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
               const SizedBox(width: 8),
               Text(
-                'Menunggu pembayaran...',
+                _isChecking || _manualRefreshInProgress 
+                    ? 'Sedang memeriksa...' 
+                    : 'Menunggu pembayaran...',
                 style: GoogleFonts.inter(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -436,7 +676,45 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
             ],
           ),
 
-          const SizedBox(height: 32),
+          // ✅ NEW: Last Checked Timestamp
+          if (_lastCheckedAt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 12),
+              child: Text(
+                'Terakhir diperiksa: ${_formatTimestamp(_lastCheckedAt!)}',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: AppColors.textSecondary.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // ✅ NEW: Manual Check Button (WITH ANTI-SPAM)
+          if (_paymentStatus == 'PENDING' && !_isChecking)
+            _buildManualCheckButton(),
+
+          // Loading indicator while checking
+          if (_isChecking || _manualRefreshInProgress)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: AppColors.primary),
+                    SizedBox(height: 12),
+                    Text(
+                      'Memeriksa pembayaran...',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
 
           // Action buttons: Tunda / Batal
           Row(
@@ -485,6 +763,103 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildManualCheckButton() {
+    final now = DateTime.now();
+    final cooldownRemaining = _cooldownEndTime.difference(now);
+    
+    // If in cooldown, show disabled button with timer
+    if (cooldownRemaining.inMilliseconds > 0) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: OutlinedButton(
+          onPressed: null, // Disabled
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textSecondary,
+            side: BorderSide(color: Colors.grey.shade400),
+            backgroundColor: Colors.grey.shade100,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary, width: 2),
+                ),
+                child: Icon(
+                  Icons.timer_outlined,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Tunggu ${cooldownRemaining.inSeconds}s lagi...',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Check anti-spam from rapid taps
+    if (!_canCheckPayment()) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: OutlinedButton(
+          onPressed: null, // Disabled
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textSecondary,
+            side: BorderSide(color: Colors.grey.shade400),
+            backgroundColor: Colors.grey.shade100,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.block, size: 20, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                'Terlalu sering tap!',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // Normal enabled state
+    return ElevatedButton.icon(
+      onPressed: _manualCheck,
+      icon: const Icon(Icons.refresh, size: 18),
+      label: const Text('Periksa Sekarang'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        shadowColor: AppColors.primary.withValues(alpha: 0.3),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
