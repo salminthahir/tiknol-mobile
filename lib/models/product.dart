@@ -69,29 +69,34 @@ class Product {
     };
   }
 
+  // Sentinel untuk copyWith agar bisa menerima null
+  static const _unset = Object();
+
   Product copyWith({
     String? id,
     String? name,
-    String? description,
+    Object? description = _unset,
     int? price,
-    int? branchPrice,
+    Object? branchPrice = _unset,
     String? category,
-    String? image,
+    Object? image = _unset,
     bool? isAvailable,
     bool? hasCustomization,
-    CustomizationOptions? customizationOptions,
+    Object? customizationOptions = _unset,
   }) {
     return Product(
       id: id ?? this.id,
       name: name ?? this.name,
-      description: description ?? this.description,
+      description: identical(description, _unset) ? this.description : description as String?,
       price: price ?? this.price,
-      branchPrice: branchPrice ?? this.branchPrice,
+      branchPrice: identical(branchPrice, _unset) ? this.branchPrice : branchPrice as int?,
       category: category ?? this.category,
-      image: image ?? this.image,
+      image: identical(image, _unset) ? this.image : image as String?,
       isAvailable: isAvailable ?? this.isAvailable,
       hasCustomization: hasCustomization ?? this.hasCustomization,
-      customizationOptions: customizationOptions ?? this.customizationOptions,
+      customizationOptions: identical(customizationOptions, _unset) 
+          ? this.customizationOptions 
+          : customizationOptions as CustomizationOptions?,
     );
   }
 }
