@@ -11,7 +11,7 @@ class Constants {
   // PV-4: production default is HTTPS; only development may default to a LAN
   // cleartext (HTTP) address. Override at build time with:
   //   --dart-define=API_BASE_URL=https://api.nol.coffee
-  static const String _prodDefaultBaseUrl = 'http://192.168.100.146:3000';
+  static const String _prodDefaultBaseUrl = 'https://api.nol.coffee';
   static const String _devDefaultBaseUrl = 'http://192.168.100.95:3000';
 
   static const String baseUrl = String.fromEnvironment(
