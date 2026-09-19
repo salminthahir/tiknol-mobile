@@ -32,10 +32,13 @@ class QrisPaymentScreen extends ConsumerStatefulWidget {
 class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
   Timer? _pollTimer;
   Timer? _countdownTimer;
+  Timer? _manualButtonTimer;
   int _remainingSeconds = 0;
   String _paymentStatus = 'PENDING'; // PENDING, PAID, EXPIRED, FAILED
   bool _isChecking = false;
   bool _manualRefreshInProgress = false;
+  bool _showManualButton = false;
+  bool _isSubmittingManual = false;
   int _pollAttempts = 0;
   static const int _maxPollAttempts = 120; // 10 minutes at 5s intervals
   
@@ -54,10 +57,18 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
     _remainingSeconds = widget.expiryMinutes * 60;
     _startCountdown();
     _startPolling();
+
+    // Munculkan tombol setelah 10 detik polling tanpa status PAID
+    _manualButtonTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && _paymentStatus == 'PENDING') {
+        setState(() => _showManualButton = true);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _manualButtonTimer?.cancel();
     _pollTimer?.cancel();
     _countdownTimer?.cancel();
     super.dispose();
@@ -104,7 +115,9 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
     _cooldownEndTime = DateTime.now().add(Duration(seconds: seconds));
   }
 
-  // ✅ NEW: Manual Check Handler with Anti-Spam Protection
+  // ✅ FIXED: Manual Check Handler with Anti-Spam Protection
+  // FIX #1: Set cooldown BEFORE API call to prevent race condition
+  // FIX #2: Remove dialog showing after result received (causes loop)
   Future<void> _manualCheck() async {
     // ANTI-SPAM: Reject if spam detection triggered
     if (!_canCheckPayment()) {
@@ -112,14 +125,15 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
       return;
     }
     
-    if (_paymentStatus != 'PENDING' || _isChecking) {
+    if (_paymentStatus != 'PENDING' || _manualRefreshInProgress) {
       return;
     }
 
-    setState(() => _manualRefreshInProgress = true);
+    // Set cooldown IMMEDIATELY to prevent rapid taps
     _recordRecentCheck();
+    _setCooldown(2); // Increased to 2 seconds for safety
     
-    final startTime = DateTime.now();
+    setState(() => _manualRefreshInProgress = true);
 
     try {
       final orderService = ref.read(orderServiceProvider);
@@ -127,35 +141,30 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
 
       if (!mounted) return;
 
-      final duration = DateTime.now().difference(startTime);
+      // Clear previous snackbars first
+      ScaffoldMessenger.of(context).clearSnackBars();
       
-      // Set cooldown AFTER successful check
-      _setCooldown(1); // 1 second cooldown after each successful check
-
       setState(() => _lastCheckedAt = DateTime.now());
 
       if (status == PaymentStatus.paid) {
         _handlePaymentSuccess();
       } else {
-        ScaffoldMessenger.of(context).clearSnackBars();
+        // Just show status, NO additional loading indicator (avoid recursion)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Status: ${status.name.toUpperCase()} (${duration.inSeconds}s)'),
+            content: Text('Status: ${status.name.toUpperCase()}'),
             backgroundColor: Colors.blue.shade700,
-            duration: const Duration(milliseconds: 1200),
+            duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         );
-        
-        // Show temporary loading feedback
-        _showCheckingIndicator();
       }
     } on PaymentCheckException catch (e) {
       // Keep polling - fail-closed pattern
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('⚠️ Gagal memeriksa: ${e.message}'),
+          content: Text('Gagal memeriksa: ${e.message}'),
           backgroundColor: AppColors.danger,
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
@@ -165,7 +174,7 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Error: ${(e as dynamic).toString()}'),
+          content: Text('Error: ${e.toString()}'),
           backgroundColor: AppColors.danger,
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
@@ -219,32 +228,6 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
         ],
       ),
     );
-  }
-
-  void _showCheckingIndicator() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Row(
-          children: [
-            const CircularProgressIndicator(color: AppColors.primary),
-            const SizedBox(width: 16),
-            Text(
-              'Memeriksa pembayaran...',
-              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-    
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-    });
   }
 
   void _startPolling() {
@@ -347,6 +330,7 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
   void _stopTimers() {
     _pollTimer?.cancel();
     _countdownTimer?.cancel();
+    _manualButtonTimer?.cancel();
   }
 
   Future<void> _playSuccessSound() async {
@@ -355,6 +339,99 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
       await HapticFeedback.mediumImpact();
     } catch (_) {
       // Ignore sound errors
+    }
+  }
+
+  Future<void> _showManualConfirmDialog() async {
+    final noteController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+            const SizedBox(width: 8),
+            const Text('Konfirmasi Manual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pastikan Anda telah melihat bukti pembayaran dari e-wallet/m-banking pelanggan.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 12),
+            Text('Order ID: ${widget.orderId}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('Total: Rp ${NumberFormat('#,###', 'id').format(widget.amount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(
+                labelText: 'Catatan (opsional)',
+                hintText: 'Contoh: Terlihat berhasil di DANA pelanggan',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Konfirmasi Pembayaran'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _executeManualConfirm(noteController.text);
+    }
+  }
+
+  Future<void> _executeManualConfirm(String note) async {
+    setState(() => _isSubmittingManual = true);
+    try {
+      final orderService = ref.read(orderServiceProvider);
+      await orderService.manuallyConfirmPayment(
+        orderId: widget.orderId,
+        note: note,
+      );
+
+      if (!mounted) return;
+
+      _stopTimers();
+      _paymentStatus = 'PAID';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Pembayaran dikonfirmasi manual'),
+          backgroundColor: AppColors.success,
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Pop kembali dengan status 'paid', cart_panel akan otomatis menangani cetak struk & clear cart
+      Navigator.pop(context, 'paid');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal konfirmasi: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmittingManual = false);
     }
   }
 
@@ -692,27 +769,30 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
 
           const SizedBox(height: 16),
 
-          // ✅ NEW: Manual Check Button (WITH ANTI-SPAM)
-          if (_paymentStatus == 'PENDING' && !_isChecking)
+          // ✅ IMPROVED: Manual Check Button (WITH ANTI-SPAM)
+          if (_paymentStatus == 'PENDING')
             _buildManualCheckButton(),
 
-          // Loading indicator while checking
-          if (_isChecking || _manualRefreshInProgress)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    CircularProgressIndicator(color: AppColors.primary),
-                    SizedBox(height: 12),
-                    Text(
-                      'Memeriksa pembayaran...',
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
+          if (_showManualButton && _paymentStatus == 'PENDING') ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _isSubmittingManual ? null : _showManualConfirmDialog,
+              icon: _isSubmittingManual
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textSecondary),
+                    )
+                  : const Icon(Icons.help_outline, size: 18),
+              label: Text(_isSubmittingManual ? 'Memproses...' : 'Pelanggan sudah membayar?'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+                side: BorderSide(color: Colors.grey.shade400),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
+          ],
 
           const SizedBox(height: 16),
 
@@ -768,82 +848,109 @@ class _QrisPaymentScreenState extends ConsumerState<QrisPaymentScreen> {
   }
 
   Widget _buildManualCheckButton() {
+    // FIX #4: Add explicit check for manual refresh in progress
+    if (_manualRefreshInProgress) {
+      return OutlinedButton(
+        onPressed: null, // Disabled
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textSecondary,
+          side: BorderSide(color: Colors.grey.shade400),
+          backgroundColor: Colors.grey.shade100,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Sedang memeriksa...',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Check cooldown period
     final now = DateTime.now();
     final cooldownRemaining = _cooldownEndTime.difference(now);
     
-    // If in cooldown, show disabled button with timer
     if (cooldownRemaining.inMilliseconds > 0) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: OutlinedButton(
-          onPressed: null, // Disabled
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textSecondary,
-            side: BorderSide(color: Colors.grey.shade400),
-            backgroundColor: Colors.grey.shade100,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.primary, width: 2),
-                ),
-                child: Icon(
-                  Icons.timer_outlined,
-                  size: 14,
-                  color: AppColors.textSecondary,
-                ),
+      return OutlinedButton(
+        onPressed: null, // Disabled
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textSecondary,
+          side: BorderSide(color: Colors.grey.shade400),
+          backgroundColor: Colors.grey.shade100,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.primary, width: 2),
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Tunggu ${cooldownRemaining.inSeconds}s lagi...',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
+              child: Icon(
+                Icons.timer_outlined,
+                size: 14,
+                color: AppColors.textSecondary,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Tunggu ${cooldownRemaining.inSeconds}s lagi...',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       );
     }
     
     // Check anti-spam from rapid taps
     if (!_canCheckPayment()) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: OutlinedButton(
-          onPressed: null, // Disabled
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textSecondary,
-            side: BorderSide(color: Colors.grey.shade400),
-            backgroundColor: Colors.grey.shade100,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.block, size: 20, color: AppColors.textSecondary),
-              const SizedBox(width: 8),
-              Text(
-                'Terlalu sering tap!',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
+      return OutlinedButton(
+        onPressed: null, // Disabled
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textSecondary,
+          side: BorderSide(color: Colors.grey.shade400),
+          backgroundColor: Colors.grey.shade100,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.block, size: 20, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              'Terlalu sering tap!',
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textSecondary,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }

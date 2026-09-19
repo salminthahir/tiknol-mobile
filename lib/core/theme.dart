@@ -15,6 +15,7 @@ class AppColors {
   static const reserveOutline = Color(0xFFF5F5F5);
   static const danger = Color(0xFFFD5A46);
   static const success = Color(0xFF00995E);
+  static const grab = Color(0xFF2DB34A);
   static const textPrimary = Color(0xFF1A1A2E);
   static const textSecondary = Color(0xFF6B7280);
   static const border = Color(0xFFE5E7EB);

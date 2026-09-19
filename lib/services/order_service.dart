@@ -21,6 +21,7 @@ class OrderService {
     required int uangDiterima,
     String? voucherId,
     String? clientTransactionId,
+    String paymentType = 'CASH',
   }) async {
     final api = ref.read(apiClientProvider);
     final txnId = clientTransactionId ?? '${DateTime.now().millisecondsSinceEpoch}';
@@ -45,6 +46,7 @@ class OrderService {
         'uangDiterima': uangDiterima,
         'clientTransactionId': txnId,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'paymentType': paymentType,
       },
     );
 
@@ -65,6 +67,7 @@ class OrderService {
     required String branchId,
     String? voucherId,
     String? shiftId,
+    String? clientTransactionId,
   }) async {
     final api = ref.read(apiClientProvider);
 
@@ -87,6 +90,7 @@ class OrderService {
         'branchId': branchId,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
         if (shiftId != null) 'shiftId': shiftId,
+        if (clientTransactionId != null) 'clientTransactionId': clientTransactionId,
       },
     );
 
@@ -110,6 +114,31 @@ class OrderService {
       await api.client.post('/api/payment/reset', data: {'orderId': orderId});
     } catch (_) {
       // Best-effort — don't crash if cancel fails
+    }
+  }
+
+  Future<void> manuallyConfirmPayment({
+    required String orderId,
+    String? note,
+  }) async {
+    if (orderId.isEmpty) throw ArgumentError('orderId kosong');
+    final api = ref.read(apiClientProvider);
+
+    try {
+      final response = await api.client.post(
+        '/api/payment/manual-confirm',
+        data: {
+          'orderId': orderId,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        },
+      );
+
+      if (response.statusCode != 200 || response.data['success'] != true) {
+        throw Exception(response.data['error'] ?? 'Gagal melakukan konfirmasi manual');
+      }
+    } on DioException catch (e) {
+      final serverMsg = e.response?.data is Map ? (e.response?.data as Map)['error'] : null;
+      throw Exception(serverMsg ?? 'Gangguan jaringan: ${e.type.name}');
     }
   }
 

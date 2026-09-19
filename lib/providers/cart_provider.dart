@@ -26,9 +26,20 @@ class CartNotifier extends Notifier<List<CartItem>> {
   @override
   List<CartItem> build() => [];
 
-  void addItem(Product product, {String? temp, String? size}) {
+  /// Tambah item ke cart.
+  /// [maxQty] = stok tersedia saat ini (persisted - in-cart lainnya).
+  /// Jika qty di cart sudah mencapai [maxQty], penambahan diabaikan (return false).
+  /// Return true jika berhasil ditambah.
+  bool addItem(Product product, {String? temp, String? size, int maxQty = 9999}) {
     final key = '${product.id}_${temp ?? ''}_${size ?? ''}';
     final existingIndex = state.indexWhere((item) => item.key == key);
+
+    // Total qty produk ini di cart (semua varian)
+    final totalInCart = state
+        .where((item) => item.product.id == product.id)
+        .fold(0, (sum, item) => sum + item.qty);
+
+    if (totalInCart >= maxQty) return false; // stok habis, tolak
 
     if (existingIndex >= 0) {
       final existing = state[existingIndex];
@@ -48,6 +59,7 @@ class CartNotifier extends Notifier<List<CartItem>> {
         ),
       ];
     }
+    return true;
   }
 
   void removeItem(String key) {

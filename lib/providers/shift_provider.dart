@@ -3,8 +3,6 @@ import '../models/shift.dart';
 import '../models/cash_ledger_entry.dart';
 import '../services/shift_service.dart';
 
-final shiftServiceProvider = Provider((ref) => ShiftService(ref));
-
 final shiftProvider = NotifierProvider<ShiftNotifier, ShiftState>(ShiftNotifier.new);
 
 class ShiftState {
@@ -47,6 +45,8 @@ class ShiftState {
 }
 
 class ShiftNotifier extends Notifier<ShiftState> {
+  bool _busy = false;
+
   @override
   ShiftState build() => ShiftState.initial();
 
@@ -76,6 +76,8 @@ class ShiftNotifier extends Notifier<ShiftState> {
   }
 
   Future<bool> openShift(int startCash) async {
+    if (_busy) return false;
+    _busy = true;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final svc = ref.read(shiftServiceProvider);
@@ -90,11 +92,17 @@ class ShiftNotifier extends Notifier<ShiftState> {
     } catch (e) {
       final errMsg = e.toString();
       if (errMsg.contains('409')) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Shift sudah aktif, memuat ulang...',
+        );
         await checkActiveShift();
       } else {
         state = state.copyWith(isLoading: false, error: errMsg);
       }
       return false;
+    } finally {
+      _busy = false;
     }
   }
 
@@ -110,6 +118,14 @@ class ShiftNotifier extends Notifier<ShiftState> {
         message: 'Tidak ada shift aktif',
       );
     }
+    if (_busy) {
+      return ShiftCloseResult.review(
+        expectedCash: state.expectedCash,
+        difference: 0,
+        message: 'Masih memproses permintaan sebelumnya, mohon tunggu.',
+      );
+    }
+    _busy = true;
 
     try {
       final svc = ref.read(shiftServiceProvider);
@@ -132,6 +148,8 @@ class ShiftNotifier extends Notifier<ShiftState> {
         difference: 0,
         message: 'Error: ${e.toString()}',
       );
+    } finally {
+      _busy = false;
     }
   }
 
@@ -143,7 +161,13 @@ class ShiftNotifier extends Notifier<ShiftState> {
       if (result.hasActiveShift && result.shift != null) {
         state = state.copyWith(expectedCash: result.shift!.expectedCash);
       }
-    } catch (_) {}
+    } catch (e) {
+      // Jangan menelan error diam-diam: expectedCash bisa jadi stale dan
+      // mempengaruhi rekonsiliasi kas. Set error state agar UI bisa
+      // menampilkan indikator, tanpa mengganggu hasActiveShift/currentShift
+      // yang masih valid.
+      state = state.copyWith(error: 'Gagal memperbarui kas: ${e.toString()}');
+    }
   }
 
   Future<CashLedgerEntry?> recordManualCash({
@@ -152,6 +176,8 @@ class ShiftNotifier extends Notifier<ShiftState> {
     required String note,
   }) async {
     if (!state.hasActiveShift) return null;
+    if (_busy) return null;
+    _busy = true;
     try {
       final svc = ref.read(shiftServiceProvider);
       final entry = await svc.recordManualCash(
@@ -164,6 +190,8 @@ class ShiftNotifier extends Notifier<ShiftState> {
     } catch (e) {
       state = state.copyWith(error: e.toString());
       return null;
+    } finally {
+      _busy = false;
     }
   }
 }

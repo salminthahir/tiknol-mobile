@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme.dart';
 import '../../models/cart_item.dart';
+import '../../models/payment_status.dart';
 import '../../models/product.dart';
 import '../../providers/history_provider.dart';
+import '../../services/order_service.dart';
 import '../../services/pending_payment_service.dart';
 import '../../services/printer_service.dart';
 import '../qris_payment_screen.dart';
@@ -67,10 +69,19 @@ class OrderDetailPanel extends ConsumerWidget {
               future: PendingPaymentService.getPendingPayment(id),
               builder: (context, snapshot) {
                 final pending = snapshot.data;
-                if (pending == null) return _buildReprintButton(context);
                 return Column(
                   children: [
-                    _buildContinuePaymentButton(context, ref, pending),
+                    if (pending != null) ...[
+                      _buildContinuePaymentButton(context, ref, pending),
+                      const SizedBox(height: 12),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(child: _buildCheckStatusButton(context, ref, id)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildManualConfirmButton(context, ref, id, total.toInt())),
+                      ],
+                    ),
                     const SizedBox(height: 12),
                     _buildReprintButton(context),
                   ],
@@ -576,6 +587,126 @@ class OrderDetailPanel extends ConsumerWidget {
     );
   }
 
+  Widget _buildCheckStatusButton(BuildContext context, WidgetRef ref, String orderId) {
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Memeriksa status...'), duration: Duration(seconds: 1)),
+            );
+            final orderService = ref.read(orderServiceProvider);
+            final status = await orderService.checkPaymentStatus(orderId);
+            
+            if (!context.mounted) return;
+            
+            if (status == PaymentStatus.paid) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Status: SUDAH DIBAYAR!'), backgroundColor: AppColors.success),
+              );
+              ref.read(historyProvider.notifier).fetch();
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Status: ${status.name.toUpperCase()}'), backgroundColor: Colors.blue.shade700),
+              );
+            }
+          } catch (e) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gagal memeriksa: $e'), backgroundColor: AppColors.danger),
+            );
+          }
+        },
+        icon: const Icon(LucideIcons.refreshCw, size: 16),
+        label: Text(
+          'CEK STATUS',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualConfirmButton(BuildContext context, WidgetRef ref, String orderId, int amount) {
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          final noteController = TextEditingController();
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  const Text('Konfirmasi Manual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Pastikan Anda telah melihat bukti transfer dari pelanggan.', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                  const SizedBox(height: 12),
+                  Text('Order ID: $orderId', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  Text('Total: Rp ${NumberFormat('#,###', 'id').format(amount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(labelText: 'Catatan (opsional)', border: OutlineInputBorder()),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  child: const Text('Konfirmasi Pembayaran'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirmed == true && context.mounted) {
+            try {
+              final orderService = ref.read(orderServiceProvider);
+              await orderService.manuallyConfirmPayment(orderId: orderId, note: noteController.text);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('✅ Pembayaran dikonfirmasi manual'), backgroundColor: AppColors.success),
+              );
+              ref.read(historyProvider.notifier).fetch();
+            } catch (e) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Gagal konfirmasi: ${e.toString().replaceAll('Exception: ', '')}'), backgroundColor: AppColors.danger),
+              );
+            }
+          }
+        },
+        icon: const Icon(Icons.help_outline, size: 16),
+        label: Text(
+          'MANUAL',
+          style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 12),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.textSecondary,
+          side: BorderSide(color: Colors.grey.shade400),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════
   // HELPERS
   // ═══════════════════════════════════════════════
@@ -605,6 +736,8 @@ class OrderDetailPanel extends ConsumerWidget {
       case 'QRIS':
       case 'ONLINE':
         return _PaymentInfo('QRIS', LucideIcons.qrCode);
+      case 'GRAB':
+        return _PaymentInfo('Grab', Icons.delivery_dining);
       default:
         return _PaymentInfo(payment, LucideIcons.wallet);
     }

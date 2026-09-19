@@ -91,6 +91,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   _navItem(LucideIcons.package, 'Produk', location == '/products', () async {
                     await _handleNavigation(context, '/products');
                   }),
+                  _navItem(LucideIcons.packageCheck, 'Inventory', location == '/inventory', () async {
+                    await _handleNavigation(context, '/inventory');
+                  }),
                   _navItem(LucideIcons.wallet, 'Tutup\nShift', location == '/close-shift', () async {
                     await _handleNavigation(context, '/close-shift');
                   }),
@@ -98,20 +101,58 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               ),
             ),
           ),
-          // Bottom: User info + Logout
+          // Bottom: User avatar button → /profile + Logout
           if (auth.userName != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                auth.userName!,
-                style: GoogleFonts.inter(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.reserve.withValues(alpha: 0.6),
+              child: GestureDetector(
+                onTap: () => _handleNavigation(context, '/profile'),
+                child: Container(
+                  width: 56,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: location == '/profile'
+                        ? AppColors.reserve.withValues(alpha: 0.2)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            _initials(auth.userName),
+                            style: GoogleFonts.spaceMono(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        auth.userName!,
+                        style: GoogleFonts.inter(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          color: location == '/profile'
+                              ? AppColors.reserve
+                              : AppColors.reserve.withValues(alpha: 0.6),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
               ),
             ),
           const SizedBox(height: 8),
@@ -270,6 +311,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       // Router redirect hook will handle navigation to /login automatically
       // No need for explicit context.go('/login') here
     }
+  }
+
+  String _initials(String? name) {
+    if (name == null || name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return parts[0][0].toUpperCase();
   }
 
   Widget _navItem(IconData icon, String label, bool isActive, Function() onTap) {

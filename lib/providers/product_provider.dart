@@ -6,8 +6,7 @@ import 'auth_provider.dart';
 final productsProvider = FutureProvider.autoDispose<List<Product>>((ref) async {
   ref.watch(authProvider); // Reactive dependency: re-fetch when auth/branch changes
   final productService = ref.read(productServiceProvider);
-  final products = await productService.getProducts(all: false);
-  return products.where((p) => p.isAvailable).toList();
+  return await productService.getProducts(all: false);
 });
 
 final categoryFilterProvider = NotifierProvider<CategoryFilterNotifier, String>(CategoryFilterNotifier.new);

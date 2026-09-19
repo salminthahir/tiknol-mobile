@@ -79,3 +79,10 @@ The following areas are critical but do not yet have installable skills meeting 
 ### Stack clarification
 
 This is a **Flutter** project. When using `ui-ux-pro-max`, its examples may reference React Native or web patterns; always translate those recommendations to Flutter equivalents (e.g., `GestureDetector` instead of `Pressable`, `MaterialApp` routing instead of React Navigation).
+
+<!-- antislop:start -->
+## antislop
+For UI, copy, people, mobile layout, or code comments work, load the antislop skill for the task:
+- Core filter, always on: `antislop`
+Before starting, ask the user when antislop applies: during the work, or after it is done.
+<!-- antislop:end -->

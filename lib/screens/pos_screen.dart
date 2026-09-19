@@ -10,6 +10,8 @@ import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/cart_provider.dart';
 import '../providers/shift_provider.dart';
+import '../providers/stock_provider.dart';
+// stockByIdProvider masih dipakai di inventory, stockAvailableByIdProvider dipakai di POS
 import '../models/product.dart';
 import '../services/printer_service.dart';
 import 'widgets/cart_panel.dart';
@@ -596,11 +598,15 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
 
   void _onTap() {
     final disableAnim = MediaQuery.disableAnimationsOf(context);
+    final maxQty = ref.read(stockByIdProvider(widget.product.id));
     if (widget.product.hasCustomization) {
       _showCustomizationSheet(context, ref);
     } else {
-      ref.read(cartProvider.notifier).addItem(widget.product);
-      if (!disableAnim) {
+      final added = ref.read(cartProvider.notifier).addItem(
+        widget.product,
+        maxQty: maxQty,
+      );
+      if (added && !disableAnim) {
         setState(() => _scale = 0.93);
         Future.delayed(const Duration(milliseconds: 80), () {
           if (mounted) setState(() => _scale = 1.0);
@@ -612,12 +618,14 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
   @override
   Widget build(BuildContext context) {
     final qtyInCart = ref.watch(cartProductQtyProvider(widget.product.id));
+    final stock = ref.watch(stockAvailableByIdProvider(widget.product.id));
+    final isOutOfStock = stock == 0 || !widget.product.isAvailable;
 
     return GestureDetector(
       onTapDown: (_) => setState(() => _isPressed = true),
       onTapUp: (_) {
         setState(() => _isPressed = false);
-        _onTap();
+        if (!isOutOfStock) _onTap();
       },
       onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedScale(
@@ -672,6 +680,30 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                                 ? AppColors.reserve.withValues(alpha: 0.25) 
                                 : Colors.transparent,
                           ),
+                          if (isOutOfStock)
+                            Container(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.7),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'OUT OF\nSTOCK',
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.5,
+                                      color: AppColors.reserve,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -722,6 +754,27 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                   ),
                 ],
               ),
+              // Stock badge (top-left)
+              if (!isOutOfStock)
+                Positioned(
+                  top: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Stok: $stock',
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               // Cart badge with AnimatedSwitcher
               Positioned(
                 top: 4,
@@ -737,7 +790,7 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                       ),
                     );
                   },
-                  child: qtyInCart > 0
+                  child: qtyInCart > 0 && !isOutOfStock
                       ? Container(
                           key: ValueKey(qtyInCart),
                           width: 22,
@@ -928,10 +981,12 @@ class _ProductCardState extends ConsumerState<_ProductCard> {
                     height: 52,
                     child: ElevatedButton(
                       onPressed: () {
+                        final maxQty = ref.read(stockByIdProvider(product.id));
                         ref.read(cartProvider.notifier).addItem(
                               product,
                               temp: selectedTemp,
                               size: selectedSize,
+                              maxQty: maxQty,
                             );
                         Navigator.pop(ctx);
                       },

@@ -578,6 +578,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       case 'QRIS':
       case 'ONLINE':
         return _PaymentInfo('QRIS', LucideIcons.qrCode);
+      case 'GRAB':
+        return _PaymentInfo('Grab', Icons.delivery_dining);
       default:
         return _PaymentInfo(payment, LucideIcons.wallet);
     }

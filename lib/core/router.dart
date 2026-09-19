@@ -8,6 +8,8 @@ import '../screens/kitchen_screen.dart';
 import '../screens/history_screen.dart';
 import '../screens/printer_settings_screen.dart';
 import '../screens/product_management_screen.dart';
+import '../screens/inventory_screen.dart';
+import '../screens/profile_screen.dart';
 import '../screens/close_shift_screen.dart';
 import '../screens/shell_screen.dart';
 
@@ -88,6 +90,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => NoTransitionPage(
               key: state.pageKey,
               child: const ProductManagementScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/inventory',
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const InventoryScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/profile',
+            pageBuilder: (context, state) => NoTransitionPage(
+              key: state.pageKey,
+              child: const ProfileScreen(),
             ),
           ),
           GoRoute(

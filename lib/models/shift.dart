@@ -110,6 +110,7 @@ class ShiftSummary {
   final int totalOmzet;
   final int totalCash;
   final int totalQris;
+  final int totalGrab;
 
   ShiftSummary({
     required this.shiftId,
@@ -117,6 +118,7 @@ class ShiftSummary {
     required this.totalOmzet,
     required this.totalCash,
     required this.totalQris,
+    required this.totalGrab,
   });
 
   factory ShiftSummary.fromJson(Map<String, dynamic> json) {
@@ -126,6 +128,7 @@ class ShiftSummary {
       totalOmzet: (json['totalOmzet'] as num?)?.toInt() ?? 0,
       totalCash: (json['totalCash'] as num?)?.toInt() ?? 0,
       totalQris: (json['totalQris'] as num?)?.toInt() ?? 0,
+      totalGrab: (json['totalGrab'] as num?)?.toInt() ?? 0,
     );
   }
 }

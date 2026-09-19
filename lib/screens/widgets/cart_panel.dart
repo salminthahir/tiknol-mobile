@@ -11,6 +11,7 @@ import '../../core/theme.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/shift_provider.dart';
+import '../../providers/stock_provider.dart';
 import '../../services/order_service.dart';
 import '../../services/voucher_service.dart';
 import '../../services/receipt_service.dart';
@@ -93,6 +94,7 @@ class _ConfirmDialogContentState extends State<_ConfirmDialogContent> {
   @override
   Widget build(BuildContext context) {
     final isCash = widget.paymentType == 'CASH';
+    final isGrab = widget.paymentType == 'GRAB';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -201,16 +203,44 @@ class _ConfirmDialogContentState extends State<_ConfirmDialogContent> {
             spacing: 8,
             runSpacing: 8,
             children: _quickAmounts.map((amount) {
+              final isExact = amount == widget.finalTotal;
               return ActionChip(
                 label: Text(
-                  amount == widget.finalTotal ? 'Uang Pas' : '${(amount ~/ 1000)}rb',
-                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                  isExact ? 'Uang Pas' : '${(amount ~/ 1000)}rb',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isExact ? Colors.white : Colors.black87,
+                    fontWeight: isExact ? FontWeight.w700 : FontWeight.normal,
+                  ),
                 ),
-                backgroundColor: Colors.grey[200],
-                side: BorderSide(color: Colors.grey[400]!),
+                backgroundColor: isExact ? AppColors.success : Colors.grey[200],
+                side: BorderSide(color: isExact ? AppColors.success : Colors.grey[400]!),
                 onPressed: () => _setQuickAmount(amount),
               );
             }).toList(),
+          ),
+        ],
+        if (isGrab) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.grab.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.grab.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.delivery_dining, color: AppColors.grab, size: 18),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Order masuk via platform online (Grab, GoFood, dll). Pembayaran diterima dari aplikasi.',
+                    style: TextStyle(fontSize: 12, color: AppColors.grab, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ],
@@ -220,12 +250,12 @@ class _ConfirmDialogContentState extends State<_ConfirmDialogContent> {
   List<int> get _quickAmounts {
     final t = widget.finalTotal;
     final rounded = ((t + 999) ~/ 1000) * 1000;
-    return [
-      rounded,
-      rounded + 10000,
-      rounded + 50000,
-      t,
-    ];
+    // Jika total sudah kelipatan 1000, rounded == t → "Uang Pas" sudah tercakup,
+    // jadi tidak perlu ditambahkan lagi sebagai chip terpisah agar tidak duplikat.
+    final amounts = <int>[t]; // "Uang Pas" selalu ada di posisi pertama
+    if (rounded != t) amounts.insert(0, rounded); // pembulatan ke atas (hanya jika berbeda)
+    amounts.addAll([rounded + 10000, rounded + 50000]);
+    return amounts;
   }
 }
 
@@ -372,6 +402,11 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       final auth = ref.read(authProvider);
       await ref.read(shiftProvider.notifier).refreshExpectedCash();
 
+      // Deduct stok permanen sesuai qty yang terjual
+      await ref.read(stockProvider.notifier).deductForCart(
+        cart.map((item) => (productId: item.product.id, qty: item.qty)).toList(),
+      );
+
       // Clear cart
       ref.read(cartProvider.notifier).clear();
       _customerNameController.clear();
@@ -392,6 +427,91 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           items: cart,
           total: finalTotal,
           paymentType: 'CASH',
+          subtotal: subtotal,
+          discount: _discount,
+          cashierName: auth.userName ?? 'Staff',
+          branchName: auth.branchName ?? '',
+          customerName: _customerNameController.text,
+        );
+      }
+    } catch (e) {
+      setState(() => _isProcessing = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_parseError(e)), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      _submitting = false;
+    }
+  }
+
+  Future<void> _processGrabOrder() async {
+    if (_submitting) return;
+    final cart = ref.read(cartProvider);
+    if (cart.isEmpty) return;
+
+    final shiftState = ref.read(shiftProvider);
+    if (!shiftState.hasActiveShift || shiftState.currentShift == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tidak ada shift aktif. Buka shift terlebih dahulu.'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+      return;
+    }
+
+    _hasAutoPrinted = false;
+    _submitting = true;
+    setState(() => _isProcessing = true);
+
+    try {
+      final orderService = ref.read(orderServiceProvider);
+      final subtotal = ref.read(cartTotalProvider);
+      final finalTotal = subtotal - _discount;
+
+      final order = await orderService.createCashOrder(
+        customerName: _customerNameController.text,
+        orderType: _orderType,
+        items: cart,
+        totalAmount: finalTotal,
+        subtotal: subtotal,
+        discountAmount: _discount,
+        shiftId: shiftState.currentShift!.id,
+        uangDiterima: finalTotal, // GRAB: uang diterima = total (tidak ada kembalian)
+        voucherId: _voucher?.voucherId,
+        paymentType: 'GRAB',
+      );
+
+      final auth = ref.read(authProvider);
+      // GRAB tidak mempengaruhi kas fisik — tidak perlu refresh expected cash
+
+      await ref.read(stockProvider.notifier).deductForCart(
+        cart.map((item) => (productId: item.product.id, qty: item.qty)).toList(),
+      );
+
+      ref.read(cartProvider.notifier).clear();
+      _customerNameController.clear();
+      _voucherController.clear();
+      setState(() {
+        _voucher = null;
+        _voucherError = null;
+        _isProcessing = false;
+      });
+
+      if (mounted) {
+        final isTablet = MediaQuery.sizeOf(context).width > 600;
+        if (!isTablet && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+        _showSuccessDialog(
+          order['id'] ?? '',
+          items: cart,
+          total: finalTotal,
+          paymentType: 'GRAB',
           subtotal: subtotal,
           discount: _discount,
           cashierName: auth.userName ?? 'Staff',
@@ -439,6 +559,8 @@ class _CartPanelState extends ConsumerState<CartPanel> {
       final subtotal = ref.read(cartTotalProvider);
       final finalTotal = subtotal - _discount;
 
+      final clientTxnId = 'qris_${DateTime.now().millisecondsSinceEpoch}';
+
       // Create payment (backend auto-picks QRIS)
       final result = await orderService.createOnlinePayment(
         customerName: _customerNameController.text,
@@ -449,6 +571,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
         branchId: ref.read(authProvider).branchId ?? '',
         voucherId: _voucher?.voucherId,
         shiftId: shiftState.currentShift!.id,
+        clientTransactionId: clientTxnId,
       );
 
       if (!mounted) return;
@@ -533,6 +656,12 @@ class _CartPanelState extends ConsumerState<CartPanel> {
 
       if (verified == PaymentStatus.paid) {
         final auth = ref.read(authProvider);
+
+        // Deduct stok permanen sesuai qty yang terjual
+        await ref.read(stockProvider.notifier).deductForCart(
+          cart.map((item) => (productId: item.product.id, qty: item.qty)).toList(),
+        );
+
         ref.read(cartProvider.notifier).clear();
         _customerNameController.clear();
         setState(() {
@@ -635,11 +764,13 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     final finalTotal = total - _discount;
     final formatter = NumberFormat('#,###', 'id');
 
+    final isCash = paymentType == 'CASH';
+    final isGrab = paymentType == 'GRAB';
+
     final uangDiterimaResult = await showDialog<int?>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
-        final isCash = paymentType == 'CASH';
         final cashValidNotifier = ValueNotifier<bool>(false);
         final uangDiterimaNotifier = ValueNotifier<int>(0);
 
@@ -648,7 +779,10 @@ class _CartPanelState extends ConsumerState<CartPanel> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              const Icon(Icons.receipt_long, color: AppColors.primary),
+              Icon(
+                isGrab ? Icons.delivery_dining : Icons.receipt_long,
+                color: isGrab ? AppColors.grab : AppColors.primary,
+              ),
               const SizedBox(width: 10),
               Text('Konfirmasi Pembayaran',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.black)),
@@ -680,11 +814,16 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                       ? () => Navigator.pop(ctx, isCash ? uangDiterimaNotifier.value : 0)
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isValid ? AppColors.success : Colors.grey[300],
+                    backgroundColor: isValid
+                        ? (isGrab ? AppColors.grab : AppColors.success)
+                        : Colors.grey[300],
                     foregroundColor: isValid ? Colors.white : Colors.grey[600],
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Konfirmasi Bayar', style: TextStyle(fontWeight: FontWeight.w900)),
+                  child: Text(
+                    isGrab ? 'Catat Order' : 'Konfirmasi Bayar',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                 );
               },
             ),
@@ -696,6 +835,8 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     if (uangDiterimaResult != null) {
       if (paymentType == 'CASH') {
         await _processCashPayment(uangDiterima: uangDiterimaResult);
+      } else if (paymentType == 'GRAB') {
+        await _processGrabOrder();
       } else {
         await _processOnlinePayment();
       }
@@ -778,11 +919,27 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.1),
+                      color: (paymentType == 'GRAB' ? AppColors.grab : AppColors.success).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (paymentType == 'GRAB' ? AppColors.grab : AppColors.success).withValues(alpha: 0.4),
+                      ),
                     ),
-                    child: Text(paymentType,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.success)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (paymentType == 'GRAB') ...[ 
+                          const Icon(Icons.delivery_dining, size: 14, color: AppColors.grab),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(paymentType,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: paymentType == 'GRAB' ? AppColors.grab : AppColors.success,
+                            )),
+                      ],
+                    ),
                   ),
                   // Printer status
                   const SizedBox(height: 12),
@@ -1137,6 +1294,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
     final total = ref.watch(cartTotalProvider);
     final finalTotal = total - _discount;
     final formatter = NumberFormat('#,###', 'id');
+    final hasStockIssue = ref.watch(cartHasStockIssueProvider);
 
 
 
@@ -1607,6 +1765,28 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    if (hasStockIssue)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.danger),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Stok tidak mencukupi untuk beberapa item. Kurangi qty atau hapus item.',
+                                style: GoogleFonts.inter(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Row(
                       children: [
                         Expanded(
@@ -1614,7 +1794,7 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                             height: 48,
                             child: ElevatedButton(
                               onPressed:
-                                  _isProcessing ? null : () => _showConfirmDialog('CASH'),
+                                  (_isProcessing || hasStockIssue) ? null : () => _showConfirmDialog('CASH'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.reserve,
                                 foregroundColor: Colors.black,
@@ -1639,8 +1819,8 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                             height: 48,
                             child: ElevatedButton(
                               onPressed:
-                                  _isProcessing ? null : () => _showConfirmDialog('QRIS'),
-                                style: ElevatedButton.styleFrom(
+                                  (_isProcessing || hasStockIssue) ? null : () => _showConfirmDialog('QRIS'),
+                              style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.black,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
@@ -1653,6 +1833,25 @@ class _CartPanelState extends ConsumerState<CartPanel> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed:
+                            (_isProcessing || hasStockIssue) ? null : () => _showConfirmDialog('GRAB'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.grab,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.delivery_dining, size: 20),
+                        label: Text('GRAB',
+                            style: GoogleFonts.spaceMono(
+                                fontWeight: FontWeight.w900, letterSpacing: 3)),
+                      ),
                     ),
                   ],
                 ),
@@ -1702,6 +1901,13 @@ class _CartItemTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final formatter = NumberFormat('#,###', 'id');
+
+    // Stok persisten produk ini
+    final persistedStock = ref.watch(stockByIdProvider(item.product.id));
+    // Total qty produk ini di cart (semua varian)
+    final totalInCart = ref.watch(cartProductQtyProvider(item.product.id));
+    // Tombol + disabled jika sudah mencapai stok persisten
+    final addDisabled = totalInCart >= persistedStock;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1761,11 +1967,15 @@ class _CartItemTile extends ConsumerWidget {
               ),
               _QtyButton(
                 icon: Icons.add,
-                onTap: () => ref.read(cartProvider.notifier).addItem(
-                      item.product,
-                      temp: item.selectedTemp,
-                      size: item.selectedSize,
-                    ),
+                disabled: addDisabled,
+                onTap: addDisabled
+                    ? null
+                    : () => ref.read(cartProvider.notifier).addItem(
+                          item.product,
+                          temp: item.selectedTemp,
+                          size: item.selectedSize,
+                          maxQty: persistedStock,
+                        ),
               ),
             ],
           ),
@@ -1777,24 +1987,32 @@ class _CartItemTile extends ConsumerWidget {
 
 class _QtyButton extends StatelessWidget {
   final IconData icon;
-  final VoidCallback onTap;
-  const _QtyButton({required this.icon, required this.onTap});
+  final VoidCallback? onTap;
+  final bool disabled;
+  const _QtyButton({required this.icon, required this.onTap, this.disabled = false});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
+      onTap: disabled ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: AppColors.posBg,
+          color: disabled ? AppColors.posBg.withValues(alpha: 0.4) : AppColors.posBg,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: AppColors.posDivider,
+            color: disabled
+                ? AppColors.posDivider.withValues(alpha: 0.3)
+                : AppColors.posDivider,
           ),
         ),
-        child: Icon(icon, size: 16, color: Colors.white70),
+        child: Icon(
+          icon,
+          size: 16,
+          color: disabled ? Colors.white24 : Colors.white70,
+        ),
       ),
     );
   }
