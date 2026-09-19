@@ -23,6 +23,24 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+
+    // Inject namespace for older Flutter plugins like flutter_bluetooth_serial
+    afterEvaluate {
+        val androidExt = project.extensions.findByName("android")
+        if (androidExt != null) {
+            try {
+                val namespaceMethod = androidExt.javaClass.getMethod("getNamespace")
+                val namespaceVal = namespaceMethod.invoke(androidExt)
+                if (namespaceVal == null) {
+                    val fallback = project.group.toString()
+                    androidExt.javaClass.getMethod("setNamespace", String::class.java).invoke(androidExt, fallback)
+                    println("Automatically injected namespace '$fallback' into plugin '${project.name}'")
+                }
+            } catch (e: Exception) {
+                // Ignore if methods don't exist
+            }
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")
