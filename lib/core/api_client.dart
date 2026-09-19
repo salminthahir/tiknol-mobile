@@ -27,10 +27,8 @@ class ApiClient {
         baseUrl: Constants.baseUrl,
         connectTimeout: const Duration(milliseconds: Constants.connectTimeout),
         receiveTimeout: const Duration(milliseconds: Constants.receiveTimeout),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        sendTimeout: const Duration(milliseconds: Constants.sendTimeout),
+        headers: {'Accept': 'application/json'},
       ),
     );
 
@@ -51,7 +49,10 @@ class ApiClient {
                 final match = RegExp(r'staff_session=([^;]+)').firstMatch(raw);
                 if (match != null) {
                   final value = match.group(1)!;
-                  await _storage.write(key: Constants.staffSessionKey, value: value);
+                  await _storage.write(
+                    key: Constants.staffSessionKey,
+                    value: value,
+                  );
                 }
               }
             }

@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 import '../core/api_client.dart';
+import '../core/constants.dart';
 import '../models/product.dart';
 import '../providers/auth_provider.dart';
 
@@ -21,7 +23,9 @@ class ProductService {
     final response = await _api.client.get(url);
     if (response.statusCode == 200) {
       final data = response.data as List<dynamic>;
-      return data.map((json) => Product.fromJson(json as Map<String, dynamic>)).toList();
+      return data
+          .map((json) => Product.fromJson(json as Map<String, dynamic>))
+          .toList();
     }
     throw Exception('Gagal memuat produk');
   }
@@ -37,20 +41,29 @@ class ProductService {
     bool isAvailable = true,
     int? branchPrice,
   }) async {
-    final response = await _api.client.post('/api/admin/products', data: {
-      'name': name,
-      'price': price,
-      'category': category,
-      if (description != null && description.isNotEmpty) 'description': description,
-      if (image != null && image.isNotEmpty) 'image': image,
-      'hasCustomization': hasCustomization,
-      if (customizationOptions != null) 'customizationOptions': customizationOptions.toJson(),
-      // Set availability for current branch
-      if (_branchId.isNotEmpty)
-        'productBranches': [
-          {'branchId': _branchId, 'isAvailable': isAvailable, 'branchPrice': branchPrice}
-        ],
-    });
+    final response = await _api.client.post(
+      '/api/admin/products',
+      data: {
+        'name': name,
+        'price': price,
+        'category': category,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        if (image != null && image.isNotEmpty) 'image': image,
+        'hasCustomization': hasCustomization,
+        if (customizationOptions != null)
+          'customizationOptions': customizationOptions.toJson(),
+        // Set availability for current branch
+        if (_branchId.isNotEmpty)
+          'productBranches': [
+            {
+              'branchId': _branchId,
+              'isAvailable': isAvailable,
+              'branchPrice': branchPrice,
+            },
+          ],
+      },
+    );
     if (response.statusCode == 200 || response.statusCode == 201) {
       return Product.fromJson(response.data as Map<String, dynamic>);
     }
@@ -86,20 +99,84 @@ class ProductService {
   }
 
   Future<void> deleteProduct(String productId) async {
-    final response = await _api.client.delete('/api/admin/products', data: {'id': productId});
+    final response = await _api.client.delete(
+      '/api/admin/products',
+      data: {'id': productId},
+    );
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception(response.data['error'] ?? 'Gagal menghapus produk');
     }
   }
 
   Future<String> uploadImage(File imageFile) async {
+    File fileToUpload = imageFile;
+
+    try {
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+
+      if (image != null) {
+        bool needsResize =
+            image.width > Constants.maxImageDimension ||
+            image.height > Constants.maxImageDimension;
+
+        if (needsResize) {
+          final resizedImage = img.copyResize(
+            image,
+            width: image.width > image.height
+                ? Constants.maxImageDimension
+                : null,
+            height: image.height >= image.width
+                ? Constants.maxImageDimension
+                : null,
+          );
+          final jpegBytes = img.encodeJpg(
+            resizedImage,
+            quality: Constants.imageQuality,
+          );
+
+          final tempDir = Directory.systemTemp;
+          final tempFile = File(
+            '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
+          await tempFile.writeAsBytes(jpegBytes);
+          fileToUpload = tempFile;
+        } else {
+          // If no resize needed, still compress to JPEG
+          final jpegBytes = img.encodeJpg(
+            image,
+            quality: Constants.imageQuality,
+          );
+          final tempDir = Directory.systemTemp;
+          final tempFile = File(
+            '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          );
+          await tempFile.writeAsBytes(jpegBytes);
+          fileToUpload = tempFile;
+        }
+      }
+    } catch (e) {
+      // If compression fails, fallback to original file
+      // print('Image compression failed: $e');
+    }
+
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(
-        imageFile.path,
-        filename: imageFile.path.split('/').last,
+        fileToUpload.path,
+        filename: fileToUpload.path.split('/').last,
+        contentType: DioMediaType('image', 'jpeg'),
       ),
     });
-    final response = await _api.client.post('/api/upload', data: formData);
+
+    final response = await _api.client.post('/api/admin/upload', data: formData);
+
+    // Clean up temp file if we created one
+    if (fileToUpload.path != imageFile.path && await fileToUpload.exists()) {
+      try {
+        await fileToUpload.delete();
+      } catch (_) {}
+    }
+
     if (response.statusCode == 200 && response.data['url'] != null) {
       return response.data['url'] as String;
     }

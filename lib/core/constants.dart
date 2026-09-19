@@ -2,8 +2,10 @@ class Constants {
   // Build-time environment. For local development run with:
   //   --dart-define=ENV=development
   // Production builds (default) MUST talk to an HTTPS endpoint.
-  static const String env =
-      String.fromEnvironment('ENV', defaultValue: 'production');
+  static const String env = String.fromEnvironment(
+    'ENV',
+    defaultValue: 'production',
+  );
   static bool get isProduction => env == 'production';
   static bool get isDevelopment => env == 'development';
 
@@ -16,12 +18,19 @@ class Constants {
 
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue:
-        env == 'production' ? _prodDefaultBaseUrl : _devDefaultBaseUrl,
+    defaultValue: env == 'production'
+        ? _prodDefaultBaseUrl
+        : _devDefaultBaseUrl,
   );
 
   static const int connectTimeout = 15000;
-  static const int receiveTimeout = 15000;
+  static const int receiveTimeout = 30000;
+  static const int sendTimeout = 60000;
+
+  // Image Upload Limits
+  static const int maxImageSizeBytes = 2 * 1024 * 1024; // 2 MB — sesuai batas backend
+  static const int maxImageDimension = 1080;
+  static const int imageQuality = 60;
 
   /// PV-4: true if [url] uses a secure (HTTPS) scheme.
   static bool isSecureUrl(String url) =>
@@ -37,6 +46,8 @@ class Constants {
   static const String branchCodeKey = 'branch_code';
 
   // App version — override at build time with: --dart-define=APP_VERSION=1.0.0+2
-  static const String appVersion =
-      String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0+1');
+  static const String appVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: '1.0.0+1',
+  );
 }
