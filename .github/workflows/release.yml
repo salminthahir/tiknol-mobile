@@ -1,0 +1,110 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Flutter SDK
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.x'
+        channel: 'stable'
+        
+    - name: Restore pub cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.pub-cache
+        key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pub-
+          
+    - name: Install dependencies
+      run: flutter pub get
+      
+    - name: Analyze code (optional)
+      run: flutter analyze --no-fail-on-warnings
+      
+    - name: Build APK
+      run: |
+        flutter build apk --release \
+          --dart-define=ENV=production \
+          --dart-define=API_BASE_URL=https://api.nol.coffee
+      
+    - name: Extract version from pubspec.yaml
+      id: version
+      run: |
+        VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr -d '+')
+        BUILD_NUMBER=$(grep '^version:' pubspec.yaml | awk -F+ '{print $2}')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
+        
+    - name: Get commit info
+      id: commit
+      run: |
+        COMMIT_HASH=${{ github.sha }}
+        COMMIT_MESSAGE=$(echo "${{ github.event.head_commit.message }}" | head -1 | sed 's/"/\\"/g')
+        COMMIT_DATE=$(date +"%Y-%m-%d %H:%M WIB")
+        BRANCH_NAME=${{ github.ref_name }}
+        
+        echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
+        echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+        echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        CHANGELOG=$(git log --format="%s" -n 10 | \
+          sed 's/^feat:/### 🚀 Features:/g; s/^fix:/### 🐛 Bug Fixes:/g; s/^docs:/### 📝 Documentation:/g; s/^chore:/### 🔧 Maintenance:/g; s/^BREAKING:/### 💥 Breaking Changes:/g' | \
+          awk 'BEGIN { RS="\n"; ORS="" } 
+          /^### / { print "\n"; print $0; next } 
+          !/^$/ { print "\n• " $0 }')
+        
+        if [ -z "$CHANGELOG" ]; then
+          CHANGELOG="No release notes available."
+        fi
+        
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$CHANGELOG" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      if: github.event_name != 'pull_request'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: build-${{ steps.commit.outputs.commit_hash }}
+        name: Nol Coffee POS App — build-${{ steps.commit.outputs.commit_hash }}
+        prerelease: true
+        files: build/app/outputs/flutter-apk/app-release.apk
+        body: |
+          ## 📱 Nol Coffee Reserve POS App (Automated Build)
+          
+          **Version:** v${{ steps.version.outputs.version }}+${{ steps.version.outputs.build_number }}  
+          **Build Date:** ${{ steps.commit.outputs.commit_date }}  
+          **Commit:** ${{ steps.commit.outputs.commit_hash }}  
+          **Branch:** ${{ steps.commit.outputs.branch_name }}
+          
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ---
+          ### 📦 How to Install
+          1. Download the APK file below
+          2. Enable "Install from Unknown Sources" in Android settings
+          3. Open the APK file to install
+          4. Launch app and login with your credentials
