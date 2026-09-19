@@ -84,6 +84,19 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen>
       physicalCount: _physicalCountStep1,
       step: 1,
     );
+    if (!mounted) return;
+    final shiftError = ref.read(shiftProvider).error;
+    if (shiftError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message?.isNotEmpty == true
+              ? result.message!
+              : 'Gagal menghitung selisih shift. Coba lagi.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
     setState(() {
       _step = 2;
       _expectedCash = result.expectedCash ?? 0;
@@ -92,15 +105,19 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen>
   }
 
   Future<void> _confirmClose() async {
-    final physicalCount = _expectedCash + _difference;
+    // Kirim ulang nilai hitung fisik ASLI dari step 1 (blind count), bukan
+    // hasil rekonstruksi dari expectedCash + difference. Merekonstruksi nilai
+    // ini berisiko menyimpan angka yang berbeda dari yang benar-benar
+    // dihitung kasir di laci kas (mis. jika backend membulatkan difference).
+    final physicalCount = _physicalCountStep1;
     final result = await ref.read(shiftProvider.notifier).closeShift(
       physicalCount: physicalCount,
       step: 2,
       closingNotes: _notesController.text.isNotEmpty ? _notesController.text : null,
     );
+    if (!mounted) return;
     final isFlagged = result.isFlagged ?? false;
     final diff = result.difference ?? 0;
-    if (!mounted) return;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -403,6 +420,14 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen>
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _summaryCard(
+              label: 'Omzet Grab / Online',
+              value: 'Rp ${f.format(_summary!.totalGrab)}',
+              icon: Icons.delivery_dining,
+              color: AppColors.grab,
+              wide: true,
+            ),
           ],
 
           // Ledger entries
@@ -697,7 +722,7 @@ class _CloseShiftScreenState extends ConsumerState<CloseShiftScreen>
                 _reviewRow('Kas Sistem (Expected)', f.format(_expectedCash),
                     color: Colors.white70),
                 const Divider(color: Colors.white12),
-                _reviewRow('Kas Fisik (Hitung)', f.format(_expectedCash + _difference),
+                _reviewRow('Kas Fisik (Hitung)', f.format(_physicalCountStep1),
                     color: Colors.white70),
                 const Divider(color: Colors.white12, thickness: 1.5),
                 _reviewRow('SELISIH', f.format(_difference.abs()),
