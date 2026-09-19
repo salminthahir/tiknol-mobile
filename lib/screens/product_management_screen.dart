@@ -347,6 +347,21 @@ class _ProductManagementScreenState
           _isNewProduct = false;
         });
         await _loadProducts();
+        
+        if (_selectedProduct != null) {
+          final updatedProductInList = _products.firstWhere(
+            (p) => p.id == _selectedProduct!.id,
+            orElse: () => _selectedProduct!,
+          );
+          _doSelect(updatedProductInList);
+        } else if (_products.isNotEmpty) {
+          final newProduct = _products.firstWhere(
+            (p) => p.name == _nameController.text.trim(),
+            orElse: () => _products.first,
+          );
+          _doSelect(newProduct);
+        }
+
         await Future.delayed(const Duration(milliseconds: 300));
         ref.invalidate(productsProvider);
       }
