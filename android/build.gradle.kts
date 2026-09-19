@@ -28,6 +28,31 @@ subprojects {
     afterEvaluate {
         val androidExt = project.extensions.findByName("android")
         if (androidExt != null) {
+            // Only upgrade compileSdk if it's lower than 34 to fix "android:attr/lStar not found"
+            // Do not downgrade newer plugins (like sqflite_android which needs 36)
+            try {
+                val getCompileSdkMethod = androidExt.javaClass.getMethod("getCompileSdkVersion")
+                val currentCompileSdk = getCompileSdkMethod.invoke(androidExt) as? String
+                val sdkVersion = currentCompileSdk?.replace("android-", "")?.toIntOrNull() ?: 0
+                
+                if (sdkVersion < 34) {
+                    val compileSdkMethod = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.java)
+                    compileSdkMethod.invoke(androidExt, 34)
+                }
+            } catch (e: Exception) {
+                // Try older property style
+                try {
+                    val getCompileSdkMethod = androidExt.javaClass.getMethod("getCompileSdkVersion")
+                    val currentCompileSdk = getCompileSdkMethod.invoke(androidExt) as? String
+                    val sdkVersion = currentCompileSdk?.replace("android-", "")?.toIntOrNull() ?: 0
+                    
+                    if (sdkVersion < 34) {
+                        val compileSdkMethod = androidExt.javaClass.getMethod("compileSdkVersion", Int::class.java)
+                        compileSdkMethod.invoke(androidExt, 34)
+                    }
+                } catch (e2: Exception) {}
+            }
+
             try {
                 val namespaceMethod = androidExt.javaClass.getMethod("getNamespace")
                 val namespaceVal = namespaceMethod.invoke(androidExt)

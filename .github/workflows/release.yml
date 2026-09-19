@@ -38,6 +38,10 @@ jobs:
     - name: Analyze code (optional)
       run: flutter analyze || true
       
+    - name: Setup Android SDK Platform 34
+      run: |
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+        
     - name: Build APK
       run: |
         flutter build apk --release \
