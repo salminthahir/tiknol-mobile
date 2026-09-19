@@ -6,11 +6,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:file_picker/file_picker.dart';
-import '../core/constants.dart';
+
 import '../core/theme.dart';
 import '../models/product.dart';
 import '../providers/product_provider.dart';
 import '../services/product_service.dart';
+import '../widgets/image_crop_dialog.dart';
 
 class ProductManagementScreen extends ConsumerStatefulWidget {
   const ProductManagementScreen({super.key});
@@ -218,11 +219,12 @@ class _ProductManagementScreenState
         final file = File(result.files.first.path!);
         final sizeBytes = await file.length();
 
-        if (sizeBytes > Constants.maxImageSizeBytes) {
+        // Allow up to 15MB for raw images from camera before cropping
+        if (sizeBytes > 15 * 1024 * 1024) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Gambar terlalu besar (maks 2 MB)'),
+                content: Text('Gambar terlalu besar (maks 15 MB sebelum crop)'),
                 backgroundColor: AppColors.danger,
               ),
             );
@@ -230,11 +232,21 @@ class _ProductManagementScreenState
           return;
         }
 
-        setState(() {
-          _imageFile = file;
-          _imageUrl = null;
-        });
-        _markDirty();
+        if (mounted) {
+          final croppedFile = await showDialog<File>(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => ImageCropDialog(imageFile: file),
+          );
+
+          if (croppedFile != null) {
+            setState(() {
+              _imageFile = croppedFile;
+              _imageUrl = null;
+            });
+            _markDirty();
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -985,7 +997,7 @@ class _ProductManagementScreenState
           else
             Center(
               child: Text(
-                'Tap untuk upload gambar (Maks 2MB)',
+                'Tap untuk upload gambar',
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   color: Colors.grey.shade400,

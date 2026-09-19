@@ -45,6 +45,8 @@ dependencies:
 
   # QR Code (for QRIS payment)
   qr_flutter: ^4.1.0
+  crop_your_image: ^2.0.0
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
