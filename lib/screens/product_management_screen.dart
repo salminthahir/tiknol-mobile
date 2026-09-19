@@ -926,15 +926,57 @@ class _ProductManagementScreenState
             ),
           ),
           const SizedBox(height: 6),
-          Center(
-            child: Text(
-              'Tap untuk ganti gambar',
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                color: Colors.grey.shade400,
+          if (_imageFile != null || (_imageUrl != null && _imageUrl!.isNotEmpty))
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Tap gambar untuk ganti',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _imageFile = null;
+                      _imageUrl = null;
+                    });
+                    _markDirty();
+                  },
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(LucideIcons.trash2, size: 10, color: AppColors.danger),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Hapus',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: AppColors.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Center(
+              child: Text(
+                'Tap untuk upload gambar (Maks 2MB)',
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  color: Colors.grey.shade400,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
